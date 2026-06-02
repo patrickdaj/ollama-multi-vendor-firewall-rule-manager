@@ -93,41 +93,33 @@ This platform ingests and reasons over the complete policy state of every connec
 
 ## Architecture
 
-```
-  Firewalls (direct device API — no management platform intermediary)
-  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-  │ PAN-OS   │  │ Cisco ASA│  │ Cisco FTD│  │ FortiGate│
-  │ XML API  │  │ REST API │  │ FMC REST │  │ REST v2  │
-  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘
-       └──────────────┴──────────────┴──────────────┘
-                              │
-                    vendor connectors
-                              │
-                    ┌─────────▼──────────┐
-                    │   vendor-agnostic  │
-                    │   policy models    │  FirewallRule, NATRule,
-                    │                    │  ApplicationObject, EDL,
-                    └─────────┬──────────┘  DecryptionRule, ...
-                              │
-                    ┌─────────▼──────────┐
-                    │   RAG pipeline     │  text → embeddings →
-                    │   (ChromaDB +      │  ChromaDB (persistent)
-                    │   nomic-embed)     │
-                    └─────────┬──────────┘
-                              │
-               ┌──────────────┼──────────────┐
-               │                             │
-    ┌──────────▼──────────┐     ┌────────────▼────────────┐
-    │   FastAPI + WS      │     │   MCP Server            │
-    │   Chat interface    │     │   (Claude Desktop /      │
-    │   REST API          │     │    any MCP client)       │
-    └─────────────────────┘     └─────────────────────────┘
-               │                             │
-               └──────────────┬──────────────┘
-                    ┌──────────▼──────────┐
-                    │   Ollama LLM        │  llama3.2 or any
-                    │   (local, native)   │  compatible model
-                    └─────────────────────┘
+```mermaid
+flowchart TB
+  subgraph firewalls [Firewalls]
+    direction LR
+    pa["Palo Alto Networks<br/>PAN-OS"]
+    asa["Cisco ASA<br/>REST API"]
+    ftd["Cisco FTD<br/>FMC REST"]
+    fg["FortiGate<br/>REST v2"]
+  end
+
+  connectors["Vendor connectors"]
+  models["Vendor-agnostic policy models<br/>FirewallRule, NATRule, ApplicationObject, EDL, DecryptionRule"]
+  rag["RAG pipeline<br/>text → embeddings → ChromaDB"]
+  api["FastAPI + WebSocket chat<br/>REST API"]
+  mcp["MCP Server<br/>Claude Desktop / any MCP client"]
+  llm["Ollama LLM<br/>local, native model"]
+
+  pa --> connectors
+  asa --> connectors
+  ftd --> connectors
+  fg --> connectors
+  connectors --> models
+  models --> rag
+  rag --> api
+  rag --> mcp
+  api --> llm
+  mcp --> llm
 ```
 
 **Why direct-to-device?**  
