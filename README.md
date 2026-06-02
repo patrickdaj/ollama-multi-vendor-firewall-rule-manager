@@ -8,8 +8,7 @@ A local-first, AI-powered firewall management platform. It connects directly to 
 ---
 
 ## See it work
-
-<asciinema-player src="demo.cast" speed="1.5" theme="dracula" rows="28"></asciinema-player>
+![demo](demo.gif)
 
 Up and running in 5 commands using built-in sample configs — no live firewalls needed.
 
