@@ -62,7 +62,7 @@ chat() {
     echo -e "  ${BOLD}Q: $message${RESET}"
     echo
     local payload
-    payload=$(python3 -c "import json; print(json.dumps({'session_id':'$session','message':'$message'}))")
+    payload=$(SESSION_ID="$session" MESSAGE="$message" python3 -c "import json, os; print(json.dumps({'session_id': os.environ['SESSION_ID'], 'message': os.environ['MESSAGE']}))")
     local answer
     answer=$(curl -s --max-time 120 -X POST "$API/api/v1/chat" \
         -H "Content-Type: application/json" \

@@ -9,6 +9,8 @@ A local-first, AI-powered firewall management platform. It connects directly to 
 
 ## See it work
 
+<asciinema-player src="demo.cast" speed="1.5" theme="dracula" rows="28"></asciinema-player>
+
 Up and running in 5 commands using built-in sample configs — no live firewalls needed.
 
     # One-time: install Ollama (https://ollama.com) and pull the models
@@ -372,3 +374,7 @@ User-ID / FSSO group ingestion · HIP profiles and objects (PAN-OS) · ZTNA tag 
 
 ### Phase 5 — Advanced operations
 VPN topology mapping · SD-WAN policy ingestion · Compliance checking (CIS benchmarks, NIST) · Policy push with approval workflow · Change diff tracking against last-ingested snapshot
+
+---
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/asciinema-player/3.7.0/bundle/asciinema-player.min.js"></script>
