@@ -1,0 +1,333 @@
+! ============================================================
+! ACME Corp — Cisco ASA 9.18 enterprise configuration
+! Device: asa-fw01
+! Same logical topology as pa-fw01 / fg-fw01 for cross-vendor comparison
+!
+! Intentional policy problems:
+!   - ACL "INSIDE_OUT" entry 50 is any/any permit (shadows entries below)
+!   - "web-server-prod" and "web-server-01" are duplicate objects (172.16.0.10)
+!   - "ad-server" and "dc-primary" are duplicate objects (10.1.0.10)
+! ============================================================
+
+hostname asa-fw01
+domain-name corp.acme.internal
+enable password $sha512$5000$hashed_enable_password$
+names
+
+! ============================================================
+! INTERFACES
+! ============================================================
+interface GigabitEthernet0/0
+ nameif trust
+ security-level 100
+ ip address 10.0.1.1 255.0.0.0
+ no shutdown
+
+interface GigabitEthernet0/1
+ nameif untrust
+ security-level 0
+ ip address 203.0.113.1 255.255.255.0
+ no shutdown
+
+interface GigabitEthernet0/2
+ nameif dmz
+ security-level 50
+ ip address 172.16.0.1 255.255.255.0
+ no shutdown
+
+interface GigabitEthernet0/3
+ nameif servers
+ security-level 75
+ ip address 10.1.0.1 255.255.0.0
+ no shutdown
+
+interface GigabitEthernet0/4
+ nameif mgmt
+ security-level 90
+ ip address 192.168.1.1 255.255.255.0
+ no shutdown
+
+interface GigabitEthernet0/5
+ nameif vpn
+ security-level 80
+ ip address 10.100.0.1 255.255.0.0
+ no shutdown
+
+! ============================================================
+! OBJECT NETWORKS
+! Intentional duplicates:
+!   web-server-prod = web-server-01 (both 172.16.0.10)
+!   ad-server = dc-primary (both 10.1.0.10)
+! ============================================================
+object network corp-users
+ subnet 10.0.0.0 255.0.0.0
+ description Corporate user LAN
+
+object network server-subnet
+ subnet 10.1.0.0 255.255.0.0
+ description Internal server network
+
+object network dmz-subnet
+ subnet 172.16.0.0 255.255.255.0
+ description DMZ server segment
+
+object network vpn-pool
+ subnet 10.100.0.0 255.255.0.0
+ description SSL VPN address pool
+
+object network mgmt-subnet
+ subnet 192.168.1.0 255.255.255.0
+ description OOB management network
+
+object network ad-server
+ host 10.1.0.10
+ description Active Directory / LDAP server
+
+object network dc-primary
+ host 10.1.0.10
+ description Domain Controller primary — DUPLICATE of ad-server
+
+object network db-server-01
+ host 10.1.0.20
+ description PostgreSQL primary database
+
+object network file-server-01
+ host 10.1.0.30
+ description Windows file server
+
+object network backup-server
+ host 10.1.0.40
+ description Veeam backup server
+
+object network siem-server
+ host 192.168.1.10
+ description Splunk SIEM / log aggregation
+
+object network web-server-prod
+ host 172.16.0.10
+ description Production web server (nginx) — DMZ
+
+object network web-server-01
+ host 172.16.0.10
+ description Web server 01 — DUPLICATE of web-server-prod
+
+object network mail-server-dmz
+ host 172.16.0.11
+ description Postfix mail relay — DMZ
+
+object network app-server-dmz
+ host 172.16.0.12
+ description API gateway — DMZ
+
+object network dns-google-primary
+ host 8.8.8.8
+ description Google Public DNS primary
+
+object network dns-cloudflare
+ host 1.1.1.1
+ description Cloudflare DNS
+
+object network pub-web-ip
+ host 203.0.113.10
+ description Public IP for web server
+
+object network pub-mail-ip
+ host 203.0.113.11
+ description Public IP for mail relay
+
+object network pub-nat-ip
+ host 203.0.113.1
+ description Public outbound NAT IP
+
+! ============================================================
+! OBJECT GROUPS — NETWORK
+! ============================================================
+object-group network grp-all-internal
+ description All internal RFC1918 space
+ network-object object corp-users
+ network-object object server-subnet
+ network-object object vpn-pool
+ network-object object mgmt-subnet
+
+object-group network grp-internal-servers
+ description Core internal server fleet
+ network-object object ad-server
+ network-object object db-server-01
+ network-object object file-server-01
+ network-object object backup-server
+
+object-group network grp-dmz-servers
+ description All DMZ-hosted services
+ network-object object web-server-prod
+ network-object object mail-server-dmz
+ network-object object app-server-dmz
+
+object-group network grp-pub-dns
+ description Public DNS resolvers
+ network-object object dns-google-primary
+ network-object object dns-cloudflare
+
+! ============================================================
+! OBJECT SERVICES
+! ============================================================
+object service svc-rdp
+ service tcp destination eq 3389
+ description Microsoft Remote Desktop Protocol
+
+object service svc-smb
+ service tcp destination eq 445
+ description SMB file sharing
+
+object service svc-ldap
+ service tcp destination eq 389
+ description LDAP directory queries
+
+object service svc-ldaps
+ service tcp destination eq 636
+ description LDAP over SSL
+
+object service svc-kerberos
+ service tcp destination eq 88
+ description Kerberos authentication
+
+object service svc-snmp
+ service udp destination eq 161
+ description SNMP monitoring queries
+
+object service svc-syslog
+ service udp destination eq 514
+ description Syslog UDP
+
+object service svc-syslog-tls
+ service tcp destination eq 6514
+ description Syslog over TLS
+
+object service svc-postgres
+ service tcp destination eq 5432
+ description PostgreSQL
+
+object service svc-backup-agent
+ service tcp destination eq 9102
+ description Veeam backup agent
+
+! ============================================================
+! OBJECT GROUPS — SERVICE
+! ============================================================
+object-group service svcgrp-ad-auth tcp
+ description Active Directory authentication protocols
+ port-object eq 389
+ port-object eq 636
+ port-object eq 88
+
+object-group service svcgrp-monitoring
+ description Monitoring protocols
+ service-object object svc-snmp
+ service-object object svc-syslog
+ service-object object svc-syslog-tls
+
+! ============================================================
+! NAT — OBJECT NAT (Auto NAT)
+! ============================================================
+! Outbound PAT — all internal sources to public NAT IP
+nat (trust,untrust) source dynamic corp-users pub-nat-ip
+nat (servers,untrust) source dynamic server-subnet pub-nat-ip
+nat (vpn,untrust) source dynamic vpn-pool pub-nat-ip
+nat (dmz,untrust) source dynamic dmz-subnet pub-nat-ip
+
+! DNAT — inbound HTTPS to web server
+object network web-server-prod
+ nat (dmz,untrust) static pub-web-ip service tcp https https
+
+! DNAT — inbound HTTP to web server
+object network web-server-prod
+ nat (dmz,untrust) static pub-web-ip service tcp www www
+
+! DNAT — inbound SMTP to mail relay
+object network mail-server-dmz
+ nat (dmz,untrust) static pub-mail-ip service tcp smtp smtp
+
+! ============================================================
+! ACCESS LISTS
+! INSIDE_OUT entry 50 is any/any permit — intentional shadow
+! ============================================================
+
+! --- OUTSIDE_IN: inbound from internet ---
+access-list OUTSIDE_IN extended permit tcp any object web-server-prod eq https log informational
+access-list OUTSIDE_IN extended permit tcp any object web-server-prod eq www log informational
+access-list OUTSIDE_IN extended permit tcp any object mail-server-dmz eq smtp log informational
+access-list OUTSIDE_IN extended deny   tcp any any eq 3389 log warnings
+access-list OUTSIDE_IN extended deny   tcp any any eq 445  log warnings
+access-list OUTSIDE_IN extended deny   tcp any any eq 135  log warnings
+access-list OUTSIDE_IN extended deny   ip  any any log
+
+! --- INSIDE_OUT: outbound from corporate users ---
+access-list INSIDE_OUT extended permit tcp object corp-users object-group grp-pub-dns eq domain log informational
+access-list INSIDE_OUT extended permit udp object corp-users object-group grp-pub-dns eq domain log informational
+access-list INSIDE_OUT extended permit tcp object corp-users object ad-server object-group svcgrp-ad-auth log informational
+access-list INSIDE_OUT extended permit tcp object corp-users any eq https log informational
+access-list INSIDE_OUT extended permit tcp object corp-users any eq www log informational
+access-list INSIDE_OUT extended permit tcp object corp-users any eq smtp log informational
+access-list INSIDE_OUT extended permit tcp object corp-users any eq 993 log informational
+access-list INSIDE_OUT extended permit tcp object corp-users any eq 995 log informational
+
+! INTENTIONAL SHADOW — any/any permit at position 50 — blocks rules 51-53 from being reached
+access-list INSIDE_OUT extended permit ip any any log
+! --- SHADOWED by entry above ---
+access-list INSIDE_OUT extended deny   ip object server-subnet any log
+access-list INSIDE_OUT extended deny   tcp any any eq 3389 log
+access-list INSIDE_OUT extended deny   tcp any any eq 445  log
+
+! --- SERVERS_OUT: from internal servers ---
+access-list SERVERS_OUT extended permit tcp object server-subnet object-group grp-pub-dns eq domain log informational
+access-list SERVERS_OUT extended permit tcp object server-subnet object siem-server object-group svcgrp-monitoring log informational
+access-list SERVERS_OUT extended permit tcp object server-subnet object backup-server eq 9102 log informational
+access-list SERVERS_OUT extended permit tcp object ad-server object corp-users eq 389 log informational
+access-list SERVERS_OUT extended deny   ip object server-subnet any log
+
+! --- DMZ_OUT: outbound from DMZ ---
+access-list DMZ_OUT extended permit tcp object-group grp-dmz-servers any eq https log informational
+access-list DMZ_OUT extended permit tcp object-group grp-dmz-servers any eq www  log informational
+access-list DMZ_OUT extended permit tcp object-group grp-dmz-servers object-group grp-pub-dns eq domain log informational
+access-list DMZ_OUT extended deny   ip object dmz-subnet any log
+
+! --- VPN_ACCESS: from SSL VPN clients ---
+access-list VPN_ACCESS extended permit tcp object vpn-pool object-group grp-internal-servers eq https log informational
+access-list VPN_ACCESS extended permit tcp object vpn-pool object-group grp-internal-servers eq 22   log informational
+access-list VPN_ACCESS extended permit tcp object vpn-pool object-group grp-internal-servers eq 3389 log informational
+access-list VPN_ACCESS extended permit tcp object vpn-pool any eq https log informational
+access-list VPN_ACCESS extended deny   ip object vpn-pool any log
+
+! --- MGMT_ACCESS: management zone ---
+access-list MGMT_ACCESS extended permit tcp object mgmt-subnet any eq 22   log informational
+access-list MGMT_ACCESS extended permit tcp object mgmt-subnet any eq https log informational
+access-list MGMT_ACCESS extended permit icmp object mgmt-subnet any log informational
+
+! ============================================================
+! ACCESS GROUP BINDINGS
+! ============================================================
+access-group OUTSIDE_IN  in interface untrust
+access-group INSIDE_OUT  in interface trust
+access-group SERVERS_OUT in interface servers
+access-group DMZ_OUT     in interface dmz
+access-group VPN_ACCESS  in interface vpn
+access-group MGMT_ACCESS in interface mgmt
+
+! ============================================================
+! ROUTING
+! ============================================================
+route untrust 0.0.0.0 0.0.0.0 203.0.113.254 1
+route trust   10.0.0.0 255.0.0.0 10.0.1.254 1
+route servers 10.1.0.0 255.255.0.0 10.1.0.254 1
+route dmz     172.16.0.0 255.255.255.0 172.16.0.254 1
+
+! ============================================================
+! LOGGING
+! ============================================================
+logging enable
+logging buffered warnings
+logging trap informational
+logging host mgmt 192.168.1.10 6514 format emblem
+
+! ============================================================
+! END
+! ============================================================

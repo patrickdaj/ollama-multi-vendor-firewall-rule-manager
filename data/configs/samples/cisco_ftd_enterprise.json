@@ -1,0 +1,455 @@
+{
+  "_meta": {
+    "device": "ftd-fw01",
+    "vendor": "cisco_ftd",
+    "fmc_version": "7.4.1",
+    "ftd_version": "7.4.1",
+    "scenario": "ACME Corp — same topology as pa-fw01 / fg-fw01 for cross-vendor comparison",
+    "intentional_problems": [
+      "ACP rule 'allow-all-legacy' at position 15 shadows rules 16-17",
+      "Network objects 'corp-users' and 'internal-users-net' are duplicates (10.0.0.0/8)",
+      "Network objects 'domain-controller' and 'ad-server' are duplicates (10.1.0.10)",
+      "Rule 'allow-web-noapp' uses port match instead of application filter"
+    ]
+  },
+
+  "security_zones": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/securityzones",
+    "items": [
+      {"id": "zone-trust",   "name": "trust",   "interfaceMode": "ROUTED", "description": "Corporate user LAN"},
+      {"id": "zone-untrust", "name": "untrust", "interfaceMode": "ROUTED", "description": "Internet / WAN"},
+      {"id": "zone-dmz",     "name": "dmz",     "interfaceMode": "ROUTED", "description": "Public-facing DMZ"},
+      {"id": "zone-servers", "name": "servers", "interfaceMode": "ROUTED", "description": "Internal servers"},
+      {"id": "zone-vpn",     "name": "vpn",     "interfaceMode": "ROUTED", "description": "RA-VPN tunnel interface"},
+      {"id": "zone-mgmt",    "name": "mgmt",    "interfaceMode": "ROUTED", "description": "Management OOB"}
+    ],
+    "paging": {"count": 6}
+  },
+
+  "network_objects": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/networks",
+    "items": [
+      {"id": "net-corp",      "name": "corp-users",          "type": "Network", "value": "10.0.0.0/8",      "description": "Corporate user network"},
+      {"id": "net-int",       "name": "internal-users-net",  "type": "Network", "value": "10.0.0.0/8",      "description": "Internal network — DUPLICATE of corp-users"},
+      {"id": "net-servers",   "name": "server-subnet",       "type": "Network", "value": "10.1.0.0/16",     "description": "Internal server segment"},
+      {"id": "net-dmz",       "name": "dmz-subnet",          "type": "Network", "value": "172.16.0.0/24",   "description": "DMZ segment"},
+      {"id": "net-vpn",       "name": "vpn-pool",            "type": "Network", "value": "10.100.0.0/16",   "description": "RA-VPN address pool"},
+      {"id": "net-mgmt",      "name": "mgmt-subnet",         "type": "Network", "value": "192.168.1.0/24",  "description": "Management OOB segment"},
+      {"id": "host-dc",       "name": "domain-controller",   "type": "Host",    "value": "10.1.0.10",       "description": "Active Directory domain controller"},
+      {"id": "host-ad",       "name": "ad-server",           "type": "Host",    "value": "10.1.0.10",       "description": "AD server — DUPLICATE of domain-controller"},
+      {"id": "host-db",       "name": "db-server",           "type": "Host",    "value": "10.1.0.20",       "description": "PostgreSQL database"},
+      {"id": "host-file",     "name": "file-server",         "type": "Host",    "value": "10.1.0.30",       "description": "Windows file server"},
+      {"id": "host-backup",   "name": "backup-server",       "type": "Host",    "value": "10.1.0.40",       "description": "Backup server"},
+      {"id": "host-siem",     "name": "siem-server",         "type": "Host",    "value": "192.168.1.10",    "description": "Splunk SIEM"},
+      {"id": "host-web-dmz",  "name": "web-dmz",             "type": "Host",    "value": "172.16.0.10",     "description": "DMZ web server"},
+      {"id": "host-mail-dmz", "name": "mail-dmz",            "type": "Host",    "value": "172.16.0.11",     "description": "DMZ mail relay"},
+      {"id": "host-app-dmz",  "name": "app-dmz",             "type": "Host",    "value": "172.16.0.12",     "description": "DMZ application server"},
+      {"id": "host-gdns",     "name": "google-dns",          "type": "Host",    "value": "8.8.8.8",         "description": "Google DNS"},
+      {"id": "host-cfdns",    "name": "cloudflare-dns",      "type": "Host",    "value": "1.1.1.1",         "description": "Cloudflare DNS"},
+      {"id": "host-pubweb",   "name": "pub-web-ip",          "type": "Host",    "value": "203.0.113.10",    "description": "Public web VIP"},
+      {"id": "host-pubmail",  "name": "pub-mail-ip",         "type": "Host",    "value": "203.0.113.11",    "description": "Public mail VIP"}
+    ],
+    "paging": {"count": 19}
+  },
+
+  "network_groups": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/networkgroups",
+    "items": [
+      {
+        "id": "grp-internal", "name": "grp-all-internal",
+        "objects": [{"name": "corp-users"}, {"name": "server-subnet"}, {"name": "vpn-pool"}, {"name": "mgmt-subnet"}],
+        "description": "All internal address ranges"
+      },
+      {
+        "id": "grp-servers", "name": "grp-core-servers",
+        "objects": [{"name": "domain-controller"}, {"name": "db-server"}, {"name": "file-server"}, {"name": "backup-server"}],
+        "description": "Core internal server fleet"
+      },
+      {
+        "id": "grp-dmz", "name": "grp-dmz-servers",
+        "objects": [{"name": "web-dmz"}, {"name": "mail-dmz"}, {"name": "app-dmz"}],
+        "description": "DMZ hosted servers"
+      },
+      {
+        "id": "grp-dns", "name": "grp-pub-dns",
+        "objects": [{"name": "google-dns"}, {"name": "cloudflare-dns"}],
+        "description": "Public DNS resolvers"
+      }
+    ],
+    "paging": {"count": 4}
+  },
+
+  "port_objects": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/protocolportobjects",
+    "items": [
+      {"id": "port-ldap",    "name": "LDAP",         "protocol": "TCP", "port": "389"},
+      {"id": "port-ldaps",   "name": "LDAPS",        "protocol": "TCP", "port": "636"},
+      {"id": "port-kerb",    "name": "KERBEROS",     "protocol": "TCP", "port": "88"},
+      {"id": "port-snmp",    "name": "SNMP",         "protocol": "UDP", "port": "161"},
+      {"id": "port-syslog",  "name": "SYSLOG",       "protocol": "UDP", "port": "514"},
+      {"id": "port-stls",    "name": "SYSLOG-TLS",   "protocol": "TCP", "port": "6514"},
+      {"id": "port-pg",      "name": "POSTGRESQL",   "protocol": "TCP", "port": "5432"},
+      {"id": "port-backup",  "name": "BACKUP-AGENT", "protocol": "TCP", "port": "9102"},
+      {"id": "port-rdp",     "name": "RDP",          "protocol": "TCP", "port": "3389"},
+      {"id": "port-smb",     "name": "SMB",          "protocol": "TCP", "port": "445"}
+    ],
+    "paging": {"count": 10}
+  },
+
+  "application_filters": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/applicationfilters",
+    "items": [
+      {
+        "id": "appf-web", "name": "appfilter-web-apps",
+        "categories": [{"name": "Web Application"}],
+        "description": "General web applications"
+      },
+      {
+        "id": "appf-saas", "name": "appfilter-saas-productivity",
+        "applications": [
+          {"name": "Microsoft Office 365"},
+          {"name": "Microsoft Teams"},
+          {"name": "Zoom"},
+          {"name": "Slack"},
+          {"name": "Google Workspace"}
+        ],
+        "description": "Approved SaaS productivity applications"
+      },
+      {
+        "id": "appf-p2p", "name": "appfilter-block-p2p",
+        "categories": [{"name": "Peer-to-Peer"}],
+        "risks": [{"id": 4}, {"id": 5}],
+        "description": "Block P2P and high-risk evasive applications"
+      }
+    ],
+    "paging": {"count": 3}
+  },
+
+  "intrusion_policies": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/policy/intrusionpolicies",
+    "items": [
+      {"id": "ips-default", "name": "Balanced Security and Connectivity", "description": "Default balanced IPS — standard for most traffic"},
+      {"id": "ips-strict",  "name": "Security over Connectivity",         "description": "Strict IPS — maximum protection, may impact performance"},
+      {"id": "ips-connmax", "name": "Connectivity over Security",         "description": "Minimal inspection — for trusted high-bandwidth paths"}
+    ],
+    "paging": {"count": 3}
+  },
+
+  "file_policies": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/policy/filepolicies",
+    "items": [
+      {"id": "fp-default", "name": "Block Malware", "description": "Block malware, detect files — standard policy"},
+      {"id": "fp-strict",  "name": "Block Malware and Cloud Lookup", "description": "Full AMP cloud lookup for all file transfers"}
+    ],
+    "paging": {"count": 2}
+  },
+
+  "ssl_policies": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/policy/sslpolicies",
+    "items": [
+      {
+        "id": "ssl-main", "name": "ACME-SSL-Inspection",
+        "description": "Corporate SSL inspection policy",
+        "rules": [
+          {
+            "id": "ssl-r1", "name": "no-decrypt-financial",
+            "enabled": true, "action": "DO_NOT_DECRYPT",
+            "sourceZones": {"objects": [{"name": "trust"}, {"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": []},
+            "urls": {"urlCategoriesWithReputation": [
+              {"name": "Financial Services"},
+              {"name": "Banking"},
+              {"name": "Health and Medicine"}
+            ]},
+            "description": "Exclude financial and medical sites from SSL decryption"
+          },
+          {
+            "id": "ssl-r2", "name": "decrypt-outbound-ssl",
+            "enabled": true, "action": "DECRYPT_KNOWN_KEY",
+            "sourceZones": {"objects": [{"name": "trust"}, {"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": []},
+            "urls": {"urlCategoriesWithReputation": []},
+            "description": "Decrypt all other outbound SSL — forward proxy"
+          }
+        ]
+      }
+    ],
+    "paging": {"count": 1}
+  },
+
+  "access_control_policy": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/policy/accesspolicies",
+    "items": [
+      {
+        "id": "acp-main", "name": "ACME-Main-ACP",
+        "description": "Primary access control policy — all traffic",
+        "rules": [
+          {
+            "id": "r01", "name": "block-threat-intelligence",
+            "enabled": true, "action": "BLOCK",
+            "sourceZones": {"objects": []},
+            "destinationZones": {"objects": []},
+            "sourceNetworks": {"objects": [{"name": "threat-si-blocklist"}]},
+            "destinationNetworks": {"objects": [{"name": "threat-si-blocklist"}]},
+            "destinationPorts": {"objects": []},
+            "logBegin": true, "logEnd": true,
+            "description": "Block Security Intelligence — threat IP blocklist"
+          },
+          {
+            "id": "r02", "name": "allow-dns-external",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "trust"}, {"name": "servers"}, {"name": "dmz"}, {"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": [{"name": "grp-pub-dns"}]},
+            "destinationPorts": {"objects": [{"name": "DNS"}]},
+            "applications": {"applications": [{"name": "DNS"}]},
+            "ipsPolicy": {"name": "Balanced Security and Connectivity"},
+            "logEnd": true,
+            "description": "Allow DNS to public resolvers"
+          },
+          {
+            "id": "r03", "name": "allow-ad-auth",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "trust"}, {"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "servers"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": [{"name": "domain-controller"}]},
+            "destinationPorts": {"objects": [{"name": "LDAP"}, {"name": "LDAPS"}, {"name": "KERBEROS"}]},
+            "ipsPolicy": {"name": "Security over Connectivity"},
+            "logBegin": true, "logEnd": true,
+            "description": "Active Directory auth from users and VPN"
+          },
+          {
+            "id": "r04", "name": "allow-users-web-saas",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "trust"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": [{"name": "corp-users"}]},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": [{"name": "HTTP"}, {"name": "HTTPS"}]},
+            "applications": {"applicationFilters": [{"name": "appfilter-web-apps"}, {"name": "appfilter-saas-productivity"}]},
+            "ipsPolicy": {"name": "Balanced Security and Connectivity"},
+            "filePolicy": {"name": "Block Malware"},
+            "logEnd": true,
+            "description": "Users — outbound web and approved SaaS apps with AMP"
+          },
+          {
+            "id": "r05", "name": "allow-web-noapp",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "trust"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": [{"name": "internal-users-net"}]},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": [{"name": "HTTP"}, {"name": "HTTPS"}]},
+            "applications": {},
+            "logEnd": true,
+            "description": "PROBLEM: Overlapping port-based rule without application filter — weaker security than r04"
+          },
+          {
+            "id": "r06", "name": "allow-vpn-servers",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "servers"}]},
+            "sourceNetworks": {"objects": [{"name": "vpn-pool"}]},
+            "destinationNetworks": {"objects": [{"name": "grp-core-servers"}]},
+            "destinationPorts": {"objects": [{"name": "HTTPS"}, {"name": "SSH"}, {"name": "RDP"}]},
+            "ipsPolicy": {"name": "Security over Connectivity"},
+            "filePolicy": {"name": "Block Malware and Cloud Lookup"},
+            "logBegin": true, "logEnd": true,
+            "description": "RA-VPN to internal servers — strict inspection"
+          },
+          {
+            "id": "r07", "name": "allow-dmz-updates",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "dmz"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": [{"name": "grp-dmz-servers"}]},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": [{"name": "HTTPS"}]},
+            "ipsPolicy": {"name": "Balanced Security and Connectivity"},
+            "logEnd": true,
+            "description": "DMZ servers — HTTPS out for OS package updates only"
+          },
+          {
+            "id": "r08", "name": "allow-inbound-https-web",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "untrust"}]},
+            "destinationZones": {"objects": [{"name": "dmz"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": [{"name": "web-dmz"}]},
+            "destinationPorts": {"objects": [{"name": "HTTPS"}]},
+            "ipsPolicy": {"name": "Security over Connectivity"},
+            "filePolicy": {"name": "Block Malware"},
+            "logBegin": true, "logEnd": true,
+            "description": "Inbound HTTPS to DMZ web server — strict IPS + AMP"
+          },
+          {
+            "id": "r09", "name": "allow-inbound-smtp",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "untrust"}]},
+            "destinationZones": {"objects": [{"name": "dmz"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": [{"name": "mail-dmz"}]},
+            "destinationPorts": {"objects": [{"name": "SMTP"}]},
+            "ipsPolicy": {"name": "Security over Connectivity"},
+            "filePolicy": {"name": "Block Malware and Cloud Lookup"},
+            "logBegin": true, "logEnd": true,
+            "description": "Inbound SMTP to DMZ mail relay — AMP + strict IPS"
+          },
+          {
+            "id": "r10", "name": "allow-server-monitoring",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "servers"}, {"name": "dmz"}]},
+            "destinationZones": {"objects": [{"name": "mgmt"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": [{"name": "siem-server"}]},
+            "destinationPorts": {"objects": [{"name": "SNMP"}, {"name": "SYSLOG"}, {"name": "SYSLOG-TLS"}]},
+            "logEnd": true,
+            "description": "Servers and DMZ send metrics to Splunk SIEM"
+          },
+          {
+            "id": "r11", "name": "allow-backup",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "servers"}]},
+            "destinationZones": {"objects": [{"name": "mgmt"}]},
+            "sourceNetworks": {"objects": [{"name": "grp-core-servers"}]},
+            "destinationNetworks": {"objects": [{"name": "backup-server"}]},
+            "destinationPorts": {"objects": [{"name": "BACKUP-AGENT"}]},
+            "logEnd": true,
+            "description": "Server backup jobs to Veeam backup server"
+          },
+          {
+            "id": "r12", "name": "allow-mgmt-access",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": [{"name": "mgmt"}]},
+            "destinationZones": {"objects": []},
+            "sourceNetworks": {"objects": [{"name": "mgmt-subnet"}]},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": [{"name": "SSH"}, {"name": "HTTPS"}, {"name": "ICMP"}]},
+            "logBegin": true, "logEnd": true,
+            "description": "Management zone — administrators access all zones"
+          },
+          {
+            "id": "r13", "name": "block-p2p-evasive",
+            "enabled": true, "action": "BLOCK",
+            "sourceZones": {"objects": [{"name": "trust"}, {"name": "vpn"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": []},
+            "applications": {"applicationFilters": [{"name": "appfilter-block-p2p"}]},
+            "logEnd": true,
+            "description": "Block P2P and high-risk evasive apps"
+          },
+
+          {
+            "id": "r15", "name": "allow-all-legacy",
+            "enabled": true, "action": "ALLOW",
+            "sourceZones": {"objects": []},
+            "destinationZones": {"objects": []},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": []},
+            "logEnd": false,
+            "description": "⚠ TEMP — added during emergency maintenance, never removed. Shadows rules 16-17."
+          },
+
+          {
+            "id": "r16", "name": "block-servers-internet",
+            "enabled": true, "action": "BLOCK",
+            "sourceZones": {"objects": [{"name": "servers"}]},
+            "destinationZones": {"objects": [{"name": "untrust"}]},
+            "sourceNetworks": {"objects": [{"name": "server-subnet"}]},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": []},
+            "logEnd": true,
+            "description": "SHADOWED by allow-all-legacy: block servers from direct internet"
+          },
+          {
+            "id": "r17", "name": "block-inbound-rdp-smb",
+            "enabled": true, "action": "BLOCK",
+            "sourceZones": {"objects": [{"name": "untrust"}]},
+            "destinationZones": {"objects": []},
+            "sourceNetworks": {"objects": []},
+            "destinationNetworks": {"objects": []},
+            "destinationPorts": {"objects": [{"name": "RDP"}, {"name": "SMB"}]},
+            "logEnd": true,
+            "description": "SHADOWED by allow-all-legacy: explicit inbound RDP/SMB block"
+          }
+        ]
+      }
+    ],
+    "paging": {"count": 1}
+  },
+
+  "nat_policies": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/policy/ftdnatpolicies",
+    "items": [
+      {
+        "id": "nat-main", "name": "ACME-NAT-Policy",
+        "description": "Corporate NAT policy",
+        "autonatrules": [
+          {
+            "id": "nat-a1", "enabled": true, "natType": "DYNAMIC",
+            "originalSource": {"name": "corp-users"},
+            "translatedSource": {"name": "pub-nat-ip"},
+            "interfaceInTranslatedSource": false,
+            "description": "Outbound PAT — corporate users to public NAT IP"
+          },
+          {
+            "id": "nat-a2", "enabled": true, "natType": "DYNAMIC",
+            "originalSource": {"name": "server-subnet"},
+            "translatedSource": {"name": "pub-nat-ip"},
+            "description": "Outbound PAT — server subnet"
+          },
+          {
+            "id": "nat-a3", "enabled": true, "natType": "DYNAMIC",
+            "originalSource": {"name": "vpn-pool"},
+            "translatedSource": {"name": "pub-nat-ip"},
+            "description": "Outbound PAT — VPN clients"
+          }
+        ],
+        "manualnatrules": [
+          {
+            "id": "nat-m1", "enabled": true, "natType": "STATIC",
+            "originalDestination": {"name": "pub-web-ip"},
+            "translatedDestination": {"name": "web-dmz"},
+            "originalDestinationPort": {"name": "HTTPS"},
+            "translatedDestinationPort": {"name": "HTTPS"},
+            "description": "DNAT inbound HTTPS to DMZ web server"
+          },
+          {
+            "id": "nat-m2", "enabled": true, "natType": "STATIC",
+            "originalDestination": {"name": "pub-web-ip"},
+            "translatedDestination": {"name": "web-dmz"},
+            "originalDestinationPort": {"name": "HTTP"},
+            "translatedDestinationPort": {"name": "HTTP"},
+            "description": "DNAT inbound HTTP to DMZ web server"
+          },
+          {
+            "id": "nat-m3", "enabled": true, "natType": "STATIC",
+            "originalDestination": {"name": "pub-mail-ip"},
+            "translatedDestination": {"name": "mail-dmz"},
+            "originalDestinationPort": {"name": "SMTP"},
+            "translatedDestinationPort": {"name": "SMTP"},
+            "description": "DNAT inbound SMTP to DMZ mail relay"
+          }
+        ]
+      }
+    ],
+    "paging": {"count": 1}
+  },
+
+  "security_intelligence_feeds": {
+    "endpoint": "/api/fmc_config/v1/domain/{uuid}/object/siurllists",
+    "items": [
+      {"id": "si-urls", "name": "Cisco-Talos-URL-Intel",  "readOnly": true,  "description": "Cisco Talos URL intelligence feed (Cisco-managed)"},
+      {"id": "si-cust", "name": "custom-threat-url-list", "readOnly": false, "description": "Custom internal URL blocklist"}
+    ],
+    "paging": {"count": 2}
+  }
+}

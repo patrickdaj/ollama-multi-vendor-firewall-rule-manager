@@ -1,0 +1,71 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: fw-chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER: ""
+      ANONYMIZED_TELEMETRY: "false"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/8000"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fw-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+      - ./scripts:/app/scripts:ro
+      - ./.env:/app/.env:ro
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    command: fw-api
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fw-mcp
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      MCP_TRANSPORT: sse
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8001"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/8001"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      chromadb:
+        condition: service_healthy
+    command: fw-mcp
+
+volumes:
+  chroma_data:

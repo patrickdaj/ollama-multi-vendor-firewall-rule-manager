@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "firewall-manager": {
+      "command": "docker",
+      "args": ["exec", "-i", "-e", "MCP_TRANSPORT=stdio", "fw-mcp", "fw-mcp"]
+    }
+  }
+}

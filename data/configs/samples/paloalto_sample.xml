@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<!--
+  Sample Palo Alto PAN-OS security policy export.
+  Use with the /api/v1/rag/ingest/file endpoint (vendor=paloalto, device=pa-fw01).
+-->
+<config version="10.2.0">
+  <devices>
+    <entry name="localhost.localdomain">
+      <vsys>
+        <entry name="vsys1">
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="allow-web-outbound">
+                  <action>allow</action>
+                  <from><member>trust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>web-browsing</member><member>ssl</member></application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <description>Allow outbound web traffic from trust zone</description>
+                </entry>
+                <entry name="allow-dns">
+                  <action>allow</action>
+                  <from><member>trust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>dns-servers</member></destination>
+                  <service><member>service-dns</member></service>
+                  <log-end>yes</log-end>
+                </entry>
+                <entry name="block-all">
+                  <action>deny</action>
+                  <from><member>any</member></from>
+                  <to><member>any</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <service><member>any</member></service>
+                  <log-end>yes</log-end>
+                  <description>Implicit deny — catch-all</description>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+          <address>
+            <entry name="dns-servers">
+              <ip-netmask>8.8.8.0/24</ip-netmask>
+              <description>Google public DNS range</description>
+            </entry>
+            <entry name="dmz-web-servers">
+              <ip-range>192.168.10.10-192.168.10.20</ip-range>
+              <description>DMZ web server pool</description>
+            </entry>
+          </address>
+          <service>
+            <entry name="service-dns">
+              <protocol><udp><port>53</port></udp></protocol>
+            </entry>
+          </service>
+        </entry>
+      </vsys>
+    </entry>
+  </devices>
+</config>

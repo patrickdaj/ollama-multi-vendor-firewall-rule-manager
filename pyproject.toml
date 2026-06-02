@@ -1,0 +1,73 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fw-rag-manager"
+version = "0.1.0"
+description = "Multi-vendor firewall rule manager with RAG and MCP"
+requires-python = ">=3.12"
+dependencies = [
+    # LangChain ecosystem (1.x — modules split into separate packages)
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-text-splitters>=0.3",
+    "langchain-ollama>=0.2",
+    "langchain-chroma>=0.1",
+    "langchain-community>=0.3",
+    # Vector store
+    "chromadb>=0.5",
+    # API framework
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "websockets>=13",
+    # MCP server
+    "mcp[cli]>=1.0",
+    # Config / validation
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-dotenv>=1.0",
+    # HTTP client
+    "httpx>=0.28",
+    # Firewall vendor SDKs
+    "pan-os-python>=1.12",      # Palo Alto
+    "netmiko>=4.4",             # Cisco ASA / multi-vendor SSH
+    # Utilities
+    "paramiko>=3.5",
+    "rich>=13",                 # Pretty CLI output
+    "typer>=0.13",              # CLI entrypoint
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-httpx>=0.33",
+    "mypy>=1.13",
+    "ruff>=0.8",
+    "types-paramiko",
+]
+
+[project.scripts]
+fw-chat = "src.main:cli_app"
+fw-mcp  = "src.mcp.server:run"
+fw-api  = "src.api.main:run"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

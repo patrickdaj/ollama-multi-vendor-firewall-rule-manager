@@ -1,0 +1,469 @@
+{
+  "_meta": {
+    "device": "fg-fw01",
+    "vendor": "fortinet",
+    "version": "FortiOS 7.4.3",
+    "scenario": "ACME Corp — same logical topology as pa-fw01 for cross-vendor comparison",
+    "intentional_problems": [
+      "Policies 20 (allow-all-temp) shadows policies 21-22",
+      "Address objects 'corp-users' and 'internal-net' are duplicates (10.0.0.0/8)",
+      "Address objects 'ad-server' and 'domain-controller' are duplicates (10.1.0.10)",
+      "Policy 5 (allow-internal-web) uses port-based service instead of app-control"
+    ]
+  },
+
+  "system_zone": {
+    "endpoint": "/api/v2/cmdb/system/zone",
+    "results": [
+      {"name": "trust",   "interface": [{"interface-name": "port1"}], "description": "Corporate user LAN"},
+      {"name": "untrust", "interface": [{"interface-name": "port2"}], "description": "Internet WAN"},
+      {"name": "dmz",     "interface": [{"interface-name": "port3"}], "description": "Public-facing DMZ"},
+      {"name": "servers", "interface": [{"interface-name": "port4"}], "description": "Internal server segment"},
+      {"name": "vpn",     "interface": [{"interface-name": "ssl.root"}], "description": "SSL VPN tunnel zone"},
+      {"name": "mgmt",    "interface": [{"interface-name": "port5"}], "description": "Management OOB"}
+    ]
+  },
+
+  "firewall_address": {
+    "endpoint": "/api/v2/cmdb/firewall/address",
+    "results": [
+      {"name": "corp-users",         "type": "ipmask", "subnet": "10.0.0.0/8",      "comment": "Corporate user network"},
+      {"name": "internal-net",       "type": "ipmask", "subnet": "10.0.0.0/8",      "comment": "Internal network — DUPLICATE of corp-users"},
+      {"name": "server-subnet",      "type": "ipmask", "subnet": "10.1.0.0/16",     "comment": "Internal server network"},
+      {"name": "dmz-subnet",         "type": "ipmask", "subnet": "172.16.0.0/24",   "comment": "DMZ server segment"},
+      {"name": "vpn-pool",           "type": "ipmask", "subnet": "10.100.0.0/16",   "comment": "SSL VPN client address pool"},
+      {"name": "mgmt-subnet",        "type": "ipmask", "subnet": "192.168.1.0/24",  "comment": "Management network"},
+      {"name": "ad-server",          "type": "ipmask", "subnet": "10.1.0.10/32",    "comment": "Active Directory / LDAP server"},
+      {"name": "domain-controller",  "type": "ipmask", "subnet": "10.1.0.10/32",    "comment": "Domain controller — DUPLICATE of ad-server"},
+      {"name": "db-server",          "type": "ipmask", "subnet": "10.1.0.20/32",    "comment": "PostgreSQL database server"},
+      {"name": "file-server",        "type": "ipmask", "subnet": "10.1.0.30/32",    "comment": "Windows file server (SMB)"},
+      {"name": "backup-server",      "type": "ipmask", "subnet": "10.1.0.40/32",    "comment": "Veeam backup server"},
+      {"name": "siem-server",        "type": "ipmask", "subnet": "192.168.1.10/32", "comment": "Splunk SIEM"},
+      {"name": "web-dmz",            "type": "ipmask", "subnet": "172.16.0.10/32",  "comment": "DMZ nginx reverse proxy"},
+      {"name": "mail-dmz",           "type": "ipmask", "subnet": "172.16.0.11/32",  "comment": "DMZ postfix mail relay"},
+      {"name": "app-dmz",            "type": "ipmask", "subnet": "172.16.0.12/32",  "comment": "DMZ API gateway"},
+      {"name": "google-dns-primary", "type": "ipmask", "subnet": "8.8.8.8/32",      "comment": "Google DNS"},
+      {"name": "cloudflare-dns",     "type": "ipmask", "subnet": "1.1.1.1/32",      "comment": "Cloudflare DNS"},
+      {"name": "pub-web-vip",        "type": "ipmask", "subnet": "203.0.113.10/32", "comment": "Public IP — web VIP"},
+      {"name": "pub-mail-vip",       "type": "ipmask", "subnet": "203.0.113.11/32", "comment": "Public IP — mail VIP"},
+      {"name": "pub-nat-ip",         "type": "ipmask", "subnet": "203.0.113.1/32",  "comment": "Public outbound NAT IP"},
+      {"name": "rfc1918-all",        "type": "ipmask", "subnet": "10.0.0.0/8",      "comment": "RFC1918 — used in block rules"}
+    ]
+  },
+
+  "firewall_addrgrp": {
+    "endpoint": "/api/v2/cmdb/firewall/addrgrp",
+    "results": [
+      {
+        "name": "grp-all-internal",
+        "member": [{"name": "corp-users"}, {"name": "server-subnet"}, {"name": "vpn-pool"}, {"name": "mgmt-subnet"}],
+        "comment": "All internal address space"
+      },
+      {
+        "name": "grp-servers",
+        "member": [{"name": "ad-server"}, {"name": "db-server"}, {"name": "file-server"}, {"name": "backup-server"}],
+        "comment": "Core internal servers"
+      },
+      {
+        "name": "grp-dmz-servers",
+        "member": [{"name": "web-dmz"}, {"name": "mail-dmz"}, {"name": "app-dmz"}],
+        "comment": "All DMZ-hosted services"
+      },
+      {
+        "name": "grp-pub-dns",
+        "member": [{"name": "google-dns-primary"}, {"name": "cloudflare-dns"}],
+        "comment": "Public DNS resolvers"
+      }
+    ]
+  },
+
+  "firewall_service_custom": {
+    "endpoint": "/api/v2/cmdb/firewall.service/custom",
+    "results": [
+      {"name": "LDAP",         "tcp-portrange": "389",  "comment": "LDAP directory"},
+      {"name": "LDAPS",        "tcp-portrange": "636",  "comment": "LDAP over SSL"},
+      {"name": "KERBEROS-TCP", "tcp-portrange": "88",   "comment": "Kerberos (TCP)"},
+      {"name": "KERBEROS-UDP", "udp-portrange": "88",   "comment": "Kerberos (UDP)"},
+      {"name": "SYSLOG-TLS",   "tcp-portrange": "6514", "comment": "Syslog over TLS (RFC 5425)"},
+      {"name": "POSTGRESQL",   "tcp-portrange": "5432", "comment": "PostgreSQL database"},
+      {"name": "BACKUP-AGENT", "tcp-portrange": "9102", "comment": "Veeam backup agent"},
+      {"name": "WINRM",        "tcp-portrange": "5985-5986", "comment": "Windows Remote Management"}
+    ]
+  },
+
+  "firewall_service_group": {
+    "endpoint": "/api/v2/cmdb/firewall.service/group",
+    "results": [
+      {
+        "name": "svcgrp-ad-auth",
+        "member": [{"name": "LDAP"}, {"name": "LDAPS"}, {"name": "KERBEROS-TCP"}, {"name": "KERBEROS-UDP"}],
+        "comment": "Active Directory authentication protocols"
+      },
+      {
+        "name": "svcgrp-monitoring",
+        "member": [{"name": "SNMP"}, {"name": "SYSLOG"}, {"name": "SYSLOG-TLS"}],
+        "comment": "Monitoring and log collection"
+      }
+    ]
+  },
+
+  "application_list": {
+    "endpoint": "/api/v2/cmdb/application/list",
+    "results": [
+      {
+        "name": "app-control-outbound",
+        "comment": "Application control for outbound user traffic",
+        "entries": [
+          {"id": 1, "application": [{"name": "P2P"}],      "action": "block", "category": "P2P"},
+          {"id": 2, "application": [{"name": "Tor"}],      "action": "block", "category": "Proxy"},
+          {"id": 3, "application": [{"name": "BitTorrent"}],"action": "block", "category": "P2P"},
+          {"id": 4, "category": [{"id": 2}],                "action": "monitor", "category": "General Interest"},
+          {"id": 5, "application": [{"name": "Office365"}, {"name": "Teams"}, {"name": "Zoom"}], "action": "pass"}
+        ]
+      }
+    ]
+  },
+
+  "antivirus_profile": {
+    "endpoint": "/api/v2/cmdb/antivirus/profile",
+    "results": [
+      {"name": "av-default", "comment": "Standard AV scanning — all protocols"},
+      {"name": "av-strict",  "comment": "Strict AV — all protocols, block unknown, deep scan"}
+    ]
+  },
+
+  "ips_sensor": {
+    "endpoint": "/api/v2/cmdb/ips/sensor",
+    "results": [
+      {"name": "ips-default", "comment": "Default IPS — critical and high severity block"},
+      {"name": "ips-strict",  "comment": "Strict IPS — all severities, extended signature set"},
+      {"name": "ips-servers", "comment": "Server-specific IPS — server-side exploit focus"}
+    ]
+  },
+
+  "webfilter_profile": {
+    "endpoint": "/api/v2/cmdb/webfilter/profile",
+    "results": [
+      {"name": "webfilter-users",  "comment": "Standard web filtering for corporate users — block malicious/adult/P2P"},
+      {"name": "webfilter-strict", "comment": "Strict filtering for VPN users — whitelisted categories only"}
+    ]
+  },
+
+  "firewall_ssl_ssh_profile": {
+    "endpoint": "/api/v2/cmdb/firewall/ssl-ssh-profile",
+    "results": [
+      {
+        "name": "deep-inspection",
+        "comment": "Full SSL/TLS inspection — forward proxy",
+        "ssl": {"min-version": "tls-1.2"},
+        "https": {"ports": "443"},
+        "ftps": {"ports": "990"}
+      },
+      {
+        "name": "certificate-inspection",
+        "comment": "Certificate-only inspection (no content decryption) — for exempt categories",
+        "ssl": {"min-version": "tls-1.1"}
+      },
+      {
+        "name": "no-inspection",
+        "comment": "No SSL inspection — for trusted internal traffic"
+      }
+    ]
+  },
+
+  "firewall_vip": {
+    "endpoint": "/api/v2/cmdb/firewall/vip",
+    "results": [
+      {
+        "name": "VIP-HTTPS-WEB",
+        "extip": "203.0.113.10",
+        "extintf": "port2",
+        "mappedip": [{"range": "172.16.0.10"}],
+        "mappedport": "443",
+        "protocol": "tcp",
+        "portforward": "enable",
+        "status": "enable",
+        "comment": "DNAT inbound HTTPS to DMZ web server"
+      },
+      {
+        "name": "VIP-HTTP-WEB",
+        "extip": "203.0.113.10",
+        "extintf": "port2",
+        "mappedip": [{"range": "172.16.0.10"}],
+        "mappedport": "80",
+        "protocol": "tcp",
+        "portforward": "enable",
+        "status": "enable",
+        "comment": "DNAT inbound HTTP to DMZ web server (redirects to HTTPS)"
+      },
+      {
+        "name": "VIP-SMTP-MAIL",
+        "extip": "203.0.113.11",
+        "extintf": "port2",
+        "mappedip": [{"range": "172.16.0.11"}],
+        "mappedport": "25",
+        "protocol": "tcp",
+        "portforward": "enable",
+        "status": "enable",
+        "comment": "DNAT inbound SMTP to DMZ mail relay"
+      }
+    ]
+  },
+
+  "central_snat_map": {
+    "endpoint": "/api/v2/cmdb/firewall/central-snat-map",
+    "results": [
+      {
+        "policyid": 1,
+        "status": "enable",
+        "type": "ippool",
+        "srcintf": [{"name": "trust"}, {"name": "servers"}, {"name": "vpn"}, {"name": "dmz"}],
+        "dstintf": [{"name": "untrust"}],
+        "orig-addr": [{"name": "grp-all-internal"}],
+        "dst-addr":  [{"name": "all"}],
+        "nat-ippool": [{"name": "pool-outbound"}],
+        "comments": "Outbound PAT — all internal zones via single public IP"
+      }
+    ]
+  },
+
+  "system_external_resource": {
+    "endpoint": "/api/v2/cmdb/system/external-resource",
+    "results": [
+      {
+        "name": "threat-feed-bad-ips",
+        "type": "address",
+        "server-list": "https://feeds.acmecorp.internal/threat/bad-ips.txt",
+        "refresh-rate": "60",
+        "comments": "Threat intelligence IP blocklist — refresh hourly"
+      },
+      {
+        "name": "threat-feed-malware-domains",
+        "type": "domain",
+        "server-list": "https://feeds.acmecorp.internal/threat/malware-domains.txt",
+        "refresh-rate": "1440",
+        "comments": "Malware C2 domain blocklist — refresh daily"
+      }
+    ]
+  },
+
+  "firewall_policy": {
+    "endpoint": "/api/v2/cmdb/firewall/policy",
+    "results": [
+      {
+        "policyid": 1, "name": "block-threat-feeds",
+        "status": "enable", "action": "deny",
+        "srcintf": [{"name": "any"}], "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "threat-feed-bad-ips"}],
+        "dstaddr": [{"name": "threat-feed-bad-ips"}],
+        "service": [{"name": "ALL"}],
+        "logtraffic": "all",
+        "comments": "Block traffic to/from threat intelligence feed — process before all other rules"
+      },
+      {
+        "policyid": 2, "name": "allow-dns-external",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "trust"}, {"name": "servers"}, {"name": "dmz"}, {"name": "vpn"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "grp-pub-dns"}],
+        "service": [{"name": "DNS"}],
+        "logtraffic": "all",
+        "dnsfilter-profile": "default",
+        "comments": "Allow DNS queries to external resolvers with DNS filtering"
+      },
+      {
+        "policyid": 3, "name": "allow-ad-authentication",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "trust"}, {"name": "vpn"}],
+        "dstintf": [{"name": "servers"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "ad-server"}],
+        "service": [{"name": "svcgrp-ad-auth"}],
+        "logtraffic": "all",
+        "av-profile": "av-default",
+        "ips-sensor": "ips-strict",
+        "comments": "Active Directory authentication from user and VPN zones"
+      },
+      {
+        "policyid": 4, "name": "allow-users-web",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "trust"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "corp-users"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTP"}, {"name": "HTTPS"}],
+        "logtraffic": "all",
+        "av-profile": "av-default",
+        "ips-sensor": "ips-default",
+        "webfilter-profile": "webfilter-users",
+        "application-list": "app-control-outbound",
+        "ssl-ssh-profile": "deep-inspection",
+        "comments": "Outbound web access for corporate users — full UTM inspection"
+      },
+      {
+        "policyid": 5, "name": "allow-internal-web-noapp",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "trust"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "internal-net"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTP"}, {"name": "HTTPS"}],
+        "logtraffic": "all",
+        "comments": "PROBLEM: Port-based rule with no app control — overlaps with policy 4 and has weaker security"
+      },
+      {
+        "policyid": 6, "name": "allow-vpn-users-servers",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "vpn"}],
+        "dstintf": [{"name": "servers"}],
+        "srcaddr": [{"name": "vpn-pool"}],
+        "dstaddr": [{"name": "grp-servers"}],
+        "service": [{"name": "HTTPS"}, {"name": "SSH"}, {"name": "RDP"}],
+        "logtraffic": "all",
+        "av-profile": "av-strict",
+        "ips-sensor": "ips-strict",
+        "webfilter-profile": "webfilter-strict",
+        "ssl-ssh-profile": "deep-inspection",
+        "comments": "Remote access VPN users to internal servers — strict policies"
+      },
+      {
+        "policyid": 7, "name": "allow-dmz-outbound-updates",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "dmz"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "grp-dmz-servers"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTPS"}],
+        "logtraffic": "all",
+        "av-profile": "av-default",
+        "ips-sensor": "ips-default",
+        "comments": "DMZ servers — HTTPS out for package updates only"
+      },
+      {
+        "policyid": 8, "name": "allow-inbound-https-web",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "untrust"}],
+        "dstintf": [{"name": "dmz"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "VIP-HTTPS-WEB"}],
+        "service": [{"name": "HTTPS"}],
+        "logtraffic": "all",
+        "av-profile": "av-strict",
+        "ips-sensor": "ips-strict",
+        "ssl-ssh-profile": "deep-inspection",
+        "comments": "Inbound HTTPS to DMZ web server via VIP — full inspection"
+      },
+      {
+        "policyid": 9, "name": "allow-inbound-http-web",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "untrust"}],
+        "dstintf": [{"name": "dmz"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "VIP-HTTP-WEB"}],
+        "service": [{"name": "HTTP"}],
+        "logtraffic": "all",
+        "ips-sensor": "ips-default",
+        "comments": "Inbound HTTP — redirects to HTTPS via app"
+      },
+      {
+        "policyid": 10, "name": "allow-inbound-smtp",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "untrust"}],
+        "dstintf": [{"name": "dmz"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "VIP-SMTP-MAIL"}],
+        "service": [{"name": "SMTP"}],
+        "logtraffic": "all",
+        "av-profile": "av-strict",
+        "ips-sensor": "ips-strict",
+        "comments": "Inbound SMTP to DMZ mail relay via VIP"
+      },
+      {
+        "policyid": 11, "name": "allow-server-monitoring",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "servers"}, {"name": "dmz"}],
+        "dstintf": [{"name": "mgmt"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "siem-server"}],
+        "service": [{"name": "svcgrp-monitoring"}],
+        "logtraffic": "all",
+        "comments": "Servers and DMZ send metrics and logs to Splunk SIEM"
+      },
+      {
+        "policyid": 12, "name": "allow-backup-jobs",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "servers"}],
+        "dstintf": [{"name": "mgmt"}],
+        "srcaddr": [{"name": "grp-servers"}],
+        "dstaddr": [{"name": "backup-server"}],
+        "service": [{"name": "BACKUP-AGENT"}],
+        "logtraffic": "all",
+        "comments": "Veeam backup agent traffic from servers to backup server"
+      },
+      {
+        "policyid": 13, "name": "allow-mgmt-zone-access",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "mgmt"}],
+        "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "mgmt-subnet"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "SSH"}, {"name": "HTTPS"}, {"name": "PING"}],
+        "logtraffic": "all",
+        "comments": "Management zone — admins have SSH/HTTPS/ping access everywhere"
+      },
+      {
+        "policyid": 14, "name": "block-high-risk-apps",
+        "status": "enable", "action": "deny",
+        "srcintf": [{"name": "trust"}, {"name": "vpn"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "application": [{"name": "P2P"}, {"name": "Tor"}, {"name": "BitTorrent"}],
+        "logtraffic": "all",
+        "comments": "Block P2P and anonymizing applications"
+      },
+
+      {
+        "policyid": 20, "name": "allow-all-temp",
+        "status": "enable", "action": "accept",
+        "srcintf": [{"name": "any"}], "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "all"}], "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "logtraffic": "disable",
+        "comments": "⚠ TEMP RULE — added during incident response, never removed. Shadows policies 21 and 22."
+      },
+
+      {
+        "policyid": 21, "name": "block-servers-direct-internet",
+        "status": "enable", "action": "deny",
+        "srcintf": [{"name": "servers"}], "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "server-subnet"}], "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "logtraffic": "all",
+        "comments": "SHADOWED by policy 20: block servers from direct internet access"
+      },
+
+      {
+        "policyid": 22, "name": "block-inbound-rdp-smb",
+        "status": "enable", "action": "deny",
+        "srcintf": [{"name": "untrust"}], "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "all"}], "dstaddr": [{"name": "all"}],
+        "service": [{"name": "RDP"}, {"name": "SAMBA"}],
+        "logtraffic": "all",
+        "comments": "SHADOWED by policy 20: explicit block for inbound RDP and SMB"
+      },
+
+      {
+        "policyid": 99, "name": "deny-all-default",
+        "status": "enable", "action": "deny",
+        "srcintf": [{"name": "any"}], "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "all"}], "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "logtraffic": "all",
+        "comments": "Default deny-all — explicit logging catch-all"
+      }
+    ]
+  }
+}

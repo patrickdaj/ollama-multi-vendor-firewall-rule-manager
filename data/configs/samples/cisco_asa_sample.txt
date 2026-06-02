@@ -1,0 +1,38 @@
+! Sample Cisco ASA running config excerpt
+! Use with /api/v1/rag/ingest/file (vendor=cisco_asa, device=asa-fw01)
+
+hostname asa-fw01
+domain-name corp.example.com
+
+! --- Object Networks ---
+object network web-servers
+ subnet 10.10.10.0 255.255.255.0
+ description Internal web server subnet
+
+object network dmz-host
+ host 172.16.1.50
+ description DMZ application server
+
+object network any-ipv4
+ subnet 0.0.0.0 0.0.0.0
+
+! --- Object Services ---
+object service svc-https
+ service tcp destination eq 443
+
+object service svc-http
+ service tcp destination eq 80
+
+! --- Access Lists ---
+access-list OUTSIDE_IN extended permit tcp any object web-servers eq 443
+access-list OUTSIDE_IN extended permit tcp any object web-servers eq 80
+access-list OUTSIDE_IN extended deny ip any any log
+
+access-list INSIDE_OUT extended permit tcp object web-servers any eq 443
+access-list INSIDE_OUT extended permit tcp object web-servers any eq 80
+access-list INSIDE_OUT extended permit udp object web-servers any eq 53
+access-list INSIDE_OUT extended deny ip any any log
+
+! --- Interface ACL bindings ---
+access-group OUTSIDE_IN in interface outside
+access-group INSIDE_OUT in interface inside

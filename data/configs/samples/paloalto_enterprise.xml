@@ -1,0 +1,812 @@
+<?xml version="1.0"?>
+<!--
+  ACME Corp — PAN-OS enterprise policy export
+  Device: pa-fw01 (PAN-OS 11.1)
+
+  Network topology:
+    trust   10.0.0.0/8        corporate users
+    servers 10.1.0.0/16       internal servers
+    dmz     172.16.0.0/24     public-facing servers
+    vpn     10.100.0.0/16     remote access VPN pool
+    mgmt    192.168.1.0/24    management / out-of-band
+    untrust (internet)
+
+  Intentional policy problems for analysis tooling:
+    - rule "allow-any-any-legacy" at position 15 shadows rules 16-18
+    - address objects "corp-network" and "trust-net" are duplicate (10.0.0.0/8)
+    - address objects "dc-01" and "ad-server" are duplicate (10.1.0.10)
+    - rule "allow-internal-web" has no App-ID restriction (port-based only)
+-->
+<config version="11.1.0">
+  <devices>
+    <entry name="localhost.localdomain">
+      <vsys>
+        <entry name="vsys1">
+
+          <!-- ═══════════════════════════════════════════════
+               ZONES
+               ═══════════════════════════════════════════════ -->
+          <zone>
+            <entry name="trust">
+              <network><layer3><member>ethernet1/1</member></layer3></network>
+              <enable-user-identification>yes</enable-user-identification>
+            </entry>
+            <entry name="untrust">
+              <network><layer3><member>ethernet1/2</member></layer3></network>
+            </entry>
+            <entry name="dmz">
+              <network><layer3><member>ethernet1/3</member></layer3></network>
+            </entry>
+            <entry name="servers">
+              <network><layer3><member>ethernet1/4</member></layer3></network>
+            </entry>
+            <entry name="vpn">
+              <network><layer3><member>tunnel.1</member></layer3></network>
+              <enable-user-identification>yes</enable-user-identification>
+            </entry>
+            <entry name="mgmt">
+              <network><layer3><member>ethernet1/5</member></layer3></network>
+            </entry>
+          </zone>
+
+          <!-- ═══════════════════════════════════════════════
+               ADDRESS OBJECTS
+               (dc-01 and ad-server are intentional duplicates)
+               (corp-network and trust-net are intentional duplicates)
+               ═══════════════════════════════════════════════ -->
+          <address>
+            <entry name="corp-network">
+              <ip-netmask>10.0.0.0/8</ip-netmask>
+              <description>Corporate user network (full RFC1918 /8)</description>
+              <tag><member>internal</member></tag>
+            </entry>
+            <entry name="trust-net">
+              <ip-netmask>10.0.0.0/8</ip-netmask>
+              <description>Trust zone network — DUPLICATE of corp-network</description>
+              <tag><member>internal</member></tag>
+            </entry>
+            <entry name="server-net">
+              <ip-netmask>10.1.0.0/16</ip-netmask>
+              <description>Internal server subnet</description>
+              <tag><member>internal</member><member>servers</member></tag>
+            </entry>
+            <entry name="dmz-net">
+              <ip-netmask>172.16.0.0/24</ip-netmask>
+              <description>DMZ public-facing server subnet</description>
+              <tag><member>dmz</member></tag>
+            </entry>
+            <entry name="vpn-pool">
+              <ip-netmask>10.100.0.0/16</ip-netmask>
+              <description>Remote access VPN address pool</description>
+              <tag><member>vpn</member></tag>
+            </entry>
+            <entry name="mgmt-net">
+              <ip-netmask>192.168.1.0/24</ip-netmask>
+              <description>Management OOB network</description>
+              <tag><member>mgmt</member></tag>
+            </entry>
+            <!-- Servers — dc-01 and ad-server intentionally duplicate -->
+            <entry name="dc-01">
+              <ip-netmask>10.1.0.10/32</ip-netmask>
+              <description>Primary domain controller</description>
+              <tag><member>servers</member><member>ad</member></tag>
+            </entry>
+            <entry name="ad-server">
+              <ip-netmask>10.1.0.10/32</ip-netmask>
+              <description>Active Directory server — DUPLICATE of dc-01</description>
+              <tag><member>servers</member></tag>
+            </entry>
+            <entry name="db-server-01">
+              <ip-netmask>10.1.0.20/32</ip-netmask>
+              <description>Primary database server (PostgreSQL)</description>
+              <tag><member>servers</member><member>db</member></tag>
+            </entry>
+            <entry name="file-server-01">
+              <ip-netmask>10.1.0.30/32</ip-netmask>
+              <description>Primary file server (SMB/NFS)</description>
+              <tag><member>servers</member></tag>
+            </entry>
+            <entry name="backup-server">
+              <ip-netmask>10.1.0.40/32</ip-netmask>
+              <description>Backup and DR server</description>
+              <tag><member>servers</member><member>mgmt</member></tag>
+            </entry>
+            <entry name="siem-server">
+              <ip-netmask>192.168.1.10/32</ip-netmask>
+              <description>SIEM / log aggregation server</description>
+              <tag><member>mgmt</member></tag>
+            </entry>
+            <entry name="web-dmz-01">
+              <ip-netmask>172.16.0.10/32</ip-netmask>
+              <description>DMZ web server (nginx reverse proxy)</description>
+              <tag><member>dmz</member><member>web</member></tag>
+            </entry>
+            <entry name="mail-dmz-01">
+              <ip-netmask>172.16.0.11/32</ip-netmask>
+              <description>DMZ mail relay (Postfix)</description>
+              <tag><member>dmz</member><member>mail</member></tag>
+            </entry>
+            <entry name="app-dmz-01">
+              <ip-netmask>172.16.0.12/32</ip-netmask>
+              <description>DMZ application server (API gateway)</description>
+              <tag><member>dmz</member><member>app</member></tag>
+            </entry>
+            <entry name="dns-8-8-8-8">
+              <ip-netmask>8.8.8.8/32</ip-netmask>
+              <description>Google Public DNS primary</description>
+            </entry>
+            <entry name="dns-1-1-1-1">
+              <ip-netmask>1.1.1.1/32</ip-netmask>
+              <description>Cloudflare DNS primary</description>
+            </entry>
+            <entry name="pub-web-ip">
+              <ip-netmask>203.0.113.10/32</ip-netmask>
+              <description>Public IP — web server</description>
+            </entry>
+            <entry name="pub-mail-ip">
+              <ip-netmask>203.0.113.11/32</ip-netmask>
+              <description>Public IP — mail relay</description>
+            </entry>
+            <entry name="pub-nat-ip">
+              <ip-netmask>203.0.113.1/32</ip-netmask>
+              <description>Public NAT egress IP</description>
+            </entry>
+          </address>
+
+          <!-- ═══════════════════════════════════════════════
+               ADDRESS GROUPS
+               ═══════════════════════════════════════════════ -->
+          <address-group>
+            <entry name="all-internal">
+              <static>
+                <member>corp-network</member>
+                <member>server-net</member>
+                <member>vpn-pool</member>
+                <member>mgmt-net</member>
+              </static>
+              <description>All internal RFC1918 ranges</description>
+            </entry>
+            <entry name="internal-servers">
+              <static>
+                <member>dc-01</member>
+                <member>db-server-01</member>
+                <member>file-server-01</member>
+                <member>backup-server</member>
+              </static>
+              <description>Core internal server fleet</description>
+            </entry>
+            <entry name="dmz-servers">
+              <static>
+                <member>web-dmz-01</member>
+                <member>mail-dmz-01</member>
+                <member>app-dmz-01</member>
+              </static>
+              <description>All DMZ-hosted servers</description>
+            </entry>
+            <entry name="public-dns-resolvers">
+              <static>
+                <member>dns-8-8-8-8</member>
+                <member>dns-1-1-1-1</member>
+              </static>
+              <description>External DNS resolvers (fallback)</description>
+            </entry>
+          </address-group>
+
+          <!-- ═══════════════════════════════════════════════
+               SERVICE OBJECTS
+               ═══════════════════════════════════════════════ -->
+          <service>
+            <entry name="svc-rdp">
+              <protocol><tcp><port>3389</port></tcp></protocol>
+              <description>Microsoft RDP</description>
+            </entry>
+            <entry name="svc-smb">
+              <protocol><tcp><port>445</port></tcp></protocol>
+              <description>SMB file sharing</description>
+            </entry>
+            <entry name="svc-ldap">
+              <protocol><tcp><port>389</port></tcp></protocol>
+              <description>LDAP directory</description>
+            </entry>
+            <entry name="svc-ldaps">
+              <protocol><tcp><port>636</port></tcp></protocol>
+              <description>LDAP over SSL</description>
+            </entry>
+            <entry name="svc-kerberos">
+              <protocol><tcp><port>88</port></tcp></protocol>
+              <description>Kerberos authentication</description>
+            </entry>
+            <entry name="svc-snmp">
+              <protocol><udp><port>161</port></udp></protocol>
+              <description>SNMP monitoring</description>
+            </entry>
+            <entry name="svc-syslog">
+              <protocol><udp><port>514</port></udp></protocol>
+              <description>Syslog (UDP)</description>
+            </entry>
+            <entry name="svc-syslog-tls">
+              <protocol><tcp><port>6514</port></tcp></protocol>
+              <description>Syslog over TLS</description>
+            </entry>
+            <entry name="svc-postgres">
+              <protocol><tcp><port>5432</port></tcp></protocol>
+              <description>PostgreSQL database</description>
+            </entry>
+            <entry name="svc-backup-agent">
+              <protocol><tcp><port>9102</port></tcp></protocol>
+              <description>Backup agent (custom port)</description>
+            </entry>
+          </service>
+
+          <!-- ═══════════════════════════════════════════════
+               SERVICE GROUPS
+               ═══════════════════════════════════════════════ -->
+          <service-group>
+            <entry name="svcgrp-monitoring">
+              <members>
+                <member>svc-snmp</member>
+                <member>svc-syslog</member>
+                <member>svc-syslog-tls</member>
+              </members>
+              <description>Monitoring and logging services</description>
+            </entry>
+            <entry name="svcgrp-ad">
+              <members>
+                <member>svc-ldap</member>
+                <member>svc-ldaps</member>
+                <member>svc-kerberos</member>
+              </members>
+              <description>Active Directory authentication services</description>
+            </entry>
+          </service-group>
+
+          <!-- ═══════════════════════════════════════════════
+               APPLICATION GROUPS
+               ═══════════════════════════════════════════════ -->
+          <application-group>
+            <entry name="appgrp-saas-productivity">
+              <members>
+                <member>office365</member>
+                <member>ms-teams</member>
+                <member>sharepoint</member>
+                <member>onedrive</member>
+                <member>zoom</member>
+                <member>webex</member>
+                <member>slack</member>
+              </members>
+            </entry>
+            <entry name="appgrp-cloud-storage">
+              <members>
+                <member>dropbox</member>
+                <member>box</member>
+                <member>google-drive</member>
+              </members>
+            </entry>
+          </application-group>
+
+          <!-- ═══════════════════════════════════════════════
+               APPLICATION FILTERS
+               ═══════════════════════════════════════════════ -->
+          <application-filter>
+            <entry name="appfilter-high-risk">
+              <risk>
+                <member>4</member>
+                <member>5</member>
+              </risk>
+              <evasive>yes</evasive>
+            </entry>
+            <entry name="appfilter-file-transfer">
+              <subcategory>
+                <member>file-sharing</member>
+              </subcategory>
+              <transfers-files>yes</transfers-files>
+            </entry>
+            <entry name="appfilter-tunneling">
+              <characteristic>
+                <member>tunnel-other-application</member>
+              </characteristic>
+            </entry>
+          </application-filter>
+
+          <!-- ═══════════════════════════════════════════════
+               EXTERNAL DYNAMIC LISTS (EDLs)
+               ═══════════════════════════════════════════════ -->
+          <external-list>
+            <entry name="edl-threat-intel-ips">
+              <type>
+                <ip>
+                  <url>https://feeds.acmecorp.internal/threat/bad-ips.txt</url>
+                  <recurring><hourly/></recurring>
+                  <description>Threat intelligence — known malicious IPs (internal feed)</description>
+                </ip>
+              </type>
+            </entry>
+            <entry name="edl-malware-domains">
+              <type>
+                <domain>
+                  <url>https://feeds.acmecorp.internal/threat/malware-domains.txt</url>
+                  <recurring><daily/></recurring>
+                  <description>Malware C2 domains</description>
+                </domain>
+              </type>
+            </entry>
+            <entry name="edl-pan-bulletproof">
+              <type>
+                <ip>
+                  <url>predefined-ip://panw-bulletproof-ip-list</url>
+                  <description>Palo Alto Networks bulletproof IP list (predefined)</description>
+                </ip>
+              </type>
+            </entry>
+          </external-list>
+
+          <!-- ═══════════════════════════════════════════════
+               RULEBASE — SECURITY
+               NOTE: rule "allow-any-any-legacy" at pos 15
+               intentionally shadows rules 16-18
+               ═══════════════════════════════════════════════ -->
+          <rulebase>
+            <security>
+              <rules>
+
+                <entry name="block-threat-intel">
+                  <action>deny</action>
+                  <from><member>any</member></from>
+                  <to><member>any</member></to>
+                  <source><member>edl-threat-intel-ips</member></source>
+                  <destination><member>edl-threat-intel-ips</member></destination>
+                  <source-address-negate>no</source-address-negate>
+                  <destination-address-negate>no</destination-address-negate>
+                  <application><member>any</member></application>
+                  <service><member>any</member></service>
+                  <log-end>yes</log-end>
+                  <description>Block traffic to/from threat intelligence IP EDL — process first</description>
+                  <tag><member>threat-intel</member><member>block</member></tag>
+                </entry>
+
+                <entry name="allow-dns-internal">
+                  <action>allow</action>
+                  <from><member>trust</member><member>servers</member><member>dmz</member><member>vpn</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>public-dns-resolvers</member></destination>
+                  <application><member>dns</member></application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <dns-security><member>default</member></dns-security>
+                    </profiles>
+                  </profile-setting>
+                  <description>Allow DNS to external resolvers with DNS security profile</description>
+                </entry>
+
+                <entry name="allow-ad-auth">
+                  <action>allow</action>
+                  <from><member>trust</member><member>vpn</member></from>
+                  <to><member>servers</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>dc-01</member></destination>
+                  <application>
+                    <member>kerberos</member>
+                    <member>msrpc-base</member>
+                    <member>active-directory</member>
+                    <member>ldap</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>default</member></virus>
+                      <spyware><member>strict</member></spyware>
+                    </profiles>
+                  </profile-setting>
+                  <description>Allow Active Directory authentication from user and VPN zones</description>
+                </entry>
+
+                <entry name="allow-web-users">
+                  <action>allow</action>
+                  <from><member>trust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>corp-network</member></source>
+                  <destination><member>any</member></destination>
+                  <application>
+                    <member>web-browsing</member>
+                    <member>ssl</member>
+                    <member>appgrp-saas-productivity</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <group><member>outbound-security-group</member></group>
+                  </profile-setting>
+                  <description>Allow outbound web and SaaS apps for corporate users with full UTM</description>
+                  <tag><member>users</member><member>internet</member></tag>
+                </entry>
+
+                <entry name="allow-email-outbound">
+                  <action>allow</action>
+                  <from><member>trust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>corp-network</member></source>
+                  <destination><member>any</member></destination>
+                  <application>
+                    <member>imap</member>
+                    <member>smtp</member>
+                    <member>pop3</member>
+                    <member>ms-exchange</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>default</member></virus>
+                      <spyware><member>default</member></spyware>
+                    </profiles>
+                  </profile-setting>
+                  <description>Allow outbound email clients</description>
+                </entry>
+
+                <entry name="allow-vpn-to-servers">
+                  <action>allow</action>
+                  <from><member>vpn</member></from>
+                  <to><member>servers</member></to>
+                  <source><member>vpn-pool</member></source>
+                  <destination><member>internal-servers</member></destination>
+                  <application>
+                    <member>ssh</member>
+                    <member>rdp</member>
+                    <member>ssl</member>
+                    <member>web-browsing</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-start>yes</log-start>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>strict</member></virus>
+                      <vulnerability><member>strict</member></vulnerability>
+                      <spyware><member>strict</member></spyware>
+                    </profiles>
+                  </profile-setting>
+                  <description>VPN users to internal servers — strict profiles</description>
+                </entry>
+
+                <entry name="allow-dmz-outbound-updates">
+                  <action>allow</action>
+                  <from><member>dmz</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>dmz-servers</member></source>
+                  <destination><member>any</member></destination>
+                  <application>
+                    <member>web-browsing</member>
+                    <member>ssl</member>
+                    <member>apt-get</member>
+                    <member>yum</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>default</member></virus>
+                    </profiles>
+                  </profile-setting>
+                  <description>DMZ servers outbound for OS updates only</description>
+                </entry>
+
+                <entry name="allow-inbound-https-web">
+                  <action>allow</action>
+                  <from><member>untrust</member></from>
+                  <to><member>dmz</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>web-dmz-01</member></destination>
+                  <application><member>ssl</member></application>
+                  <service><member>application-default</member></service>
+                  <log-start>yes</log-start>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>strict</member></virus>
+                      <vulnerability><member>strict</member></vulnerability>
+                      <spyware><member>strict</member></spyware>
+                      <url-filtering><member>strict-url</member></url-filtering>
+                    </profiles>
+                  </profile-setting>
+                  <description>Inbound HTTPS to DMZ web server with full inspection</description>
+                  <tag><member>inbound</member><member>dmz</member></tag>
+                </entry>
+
+                <entry name="allow-inbound-http-web">
+                  <action>allow</action>
+                  <from><member>untrust</member></from>
+                  <to><member>dmz</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>web-dmz-01</member></destination>
+                  <application><member>web-browsing</member></application>
+                  <service><member>application-default</member></service>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <vulnerability><member>strict</member></vulnerability>
+                    </profiles>
+                  </profile-setting>
+                  <description>Inbound HTTP (redirects to HTTPS via app)</description>
+                </entry>
+
+                <entry name="allow-inbound-smtp">
+                  <action>allow</action>
+                  <from><member>untrust</member></from>
+                  <to><member>dmz</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>mail-dmz-01</member></destination>
+                  <application><member>smtp</member></application>
+                  <service><member>application-default</member></service>
+                  <log-start>yes</log-start>
+                  <log-end>yes</log-end>
+                  <profile-setting>
+                    <profiles>
+                      <virus><member>strict</member></virus>
+                      <spyware><member>strict</member></spyware>
+                    </profiles>
+                  </profile-setting>
+                  <description>Inbound SMTP to DMZ mail relay</description>
+                </entry>
+
+                <entry name="allow-server-monitoring">
+                  <action>allow</action>
+                  <from><member>servers</member><member>dmz</member></from>
+                  <to><member>mgmt</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>siem-server</member></destination>
+                  <application>
+                    <member>syslog</member>
+                    <member>snmp</member>
+                  </application>
+                  <service><member>svcgrp-monitoring</member></service>
+                  <log-end>yes</log-end>
+                  <description>Servers and DMZ send logs/metrics to SIEM</description>
+                </entry>
+
+                <entry name="allow-backup-traffic">
+                  <action>allow</action>
+                  <from><member>servers</member></from>
+                  <to><member>mgmt</member></to>
+                  <source><member>internal-servers</member></source>
+                  <destination><member>backup-server</member></destination>
+                  <application><member>any</member></application>
+                  <service><member>svc-backup-agent</member></service>
+                  <log-end>yes</log-end>
+                  <description>Server backup jobs to backup agent — NOTE: any app on port 9102</description>
+                </entry>
+
+                <entry name="allow-mgmt-access">
+                  <action>allow</action>
+                  <from><member>mgmt</member></from>
+                  <to><member>any</member></to>
+                  <source><member>mgmt-net</member></source>
+                  <destination><member>any</member></destination>
+                  <application>
+                    <member>ssh</member>
+                    <member>https</member>
+                    <member>ping</member>
+                  </application>
+                  <service><member>application-default</member></service>
+                  <log-start>yes</log-start>
+                  <log-end>yes</log-end>
+                  <description>Management zone admins have SSH/HTTPS/ping access everywhere</description>
+                </entry>
+
+                <entry name="block-high-risk-apps">
+                  <action>deny</action>
+                  <from><member>trust</member><member>vpn</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>appfilter-high-risk</member></application>
+                  <service><member>any</member></service>
+                  <log-end>yes</log-end>
+                  <description>Block high-risk and evasive applications</description>
+                </entry>
+
+                <!-- ⚠ INTENTIONAL SHADOW RULE — this allow-any-any makes rules below unreachable -->
+                <entry name="allow-any-any-legacy">
+                  <action>allow</action>
+                  <from><member>any</member></from>
+                  <to><member>any</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>any</member></application>
+                  <service><member>any</member></service>
+                  <log-end>no</log-end>
+                  <disabled>no</disabled>
+                  <description>LEGACY — temp rule added during migration, never removed. Shadows rules below.</description>
+                  <tag><member>legacy</member><member>cleanup-needed</member></tag>
+                </entry>
+
+                <!-- SHADOWED RULES (can never be hit due to allow-any-any-legacy above) -->
+                <entry name="block-servers-direct-internet">
+                  <action>deny</action>
+                  <from><member>servers</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>server-net</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>any</member></application>
+                  <service><member>any</member></service>
+                  <log-end>yes</log-end>
+                  <description>SHADOWED: Block servers from direct internet access — bypassed by allow-any-any-legacy</description>
+                </entry>
+
+                <entry name="block-inbound-rdp">
+                  <action>deny</action>
+                  <from><member>untrust</member></from>
+                  <to><member>any</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>rdp</member></application>
+                  <service><member>any</member></service>
+                  <log-end>yes</log-end>
+                  <description>SHADOWED: Explicit inbound RDP block — bypassed by allow-any-any-legacy</description>
+                </entry>
+
+                <entry name="block-inbound-smb">
+                  <action>deny</action>
+                  <from><member>untrust</member></from>
+                  <to><member>any</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <application><member>msrpc-base</member></application>
+                  <service><member>svc-smb</member></service>
+                  <log-end>yes</log-end>
+                  <description>SHADOWED: Explicit inbound SMB/RPC block</description>
+                </entry>
+
+              </rules>
+            </security>
+
+            <!-- ═══════════════════════════════════════════════
+                 NAT RULEBASE
+                 ═══════════════════════════════════════════════ -->
+            <nat>
+              <rules>
+
+                <entry name="nat-outbound-pat">
+                  <source-translation>
+                    <dynamic-ip-and-port>
+                      <translated-address><member>pub-nat-ip</member></translated-address>
+                    </dynamic-ip-and-port>
+                  </source-translation>
+                  <from><member>trust</member><member>servers</member><member>vpn</member><member>dmz</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <service>any</service>
+                  <description>Outbound PAT — all internal zones to single public IP</description>
+                </entry>
+
+                <entry name="nat-inbound-https-web">
+                  <destination-translation>
+                    <translated-address>web-dmz-01</translated-address>
+                    <translated-port>443</translated-port>
+                  </destination-translation>
+                  <from><member>untrust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>pub-web-ip</member></destination>
+                  <service>service-https</service>
+                  <description>DNAT — inbound HTTPS to DMZ web server</description>
+                </entry>
+
+                <entry name="nat-inbound-http-web">
+                  <destination-translation>
+                    <translated-address>web-dmz-01</translated-address>
+                    <translated-port>80</translated-port>
+                  </destination-translation>
+                  <from><member>untrust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>pub-web-ip</member></destination>
+                  <service>service-http</service>
+                  <description>DNAT — inbound HTTP to DMZ web server (redirects to HTTPS)</description>
+                </entry>
+
+                <entry name="nat-inbound-smtp">
+                  <destination-translation>
+                    <translated-address>mail-dmz-01</translated-address>
+                    <translated-port>25</translated-port>
+                  </destination-translation>
+                  <from><member>untrust</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>pub-mail-ip</member></destination>
+                  <service>service-smtp</service>
+                  <description>DNAT — inbound SMTP to DMZ mail relay</description>
+                </entry>
+
+                <entry name="nat-vpn-hairpin">
+                  <source-translation>
+                    <dynamic-ip-and-port>
+                      <interface-address>
+                        <interface>ethernet1/1</interface>
+                      </interface-address>
+                    </dynamic-ip-and-port>
+                  </source-translation>
+                  <from><member>vpn</member></from>
+                  <to><member>trust</member></to>
+                  <source><member>vpn-pool</member></source>
+                  <destination><member>corp-network</member></destination>
+                  <service>any</service>
+                  <description>VPN hairpin — translate VPN source to trust interface for reply routing</description>
+                </entry>
+
+              </rules>
+            </nat>
+
+            <!-- ═══════════════════════════════════════════════
+                 DECRYPTION RULEBASE
+                 ═══════════════════════════════════════════════ -->
+            <decryption>
+              <rules>
+
+                <entry name="decrypt-outbound-ssl">
+                  <action>decrypt</action>
+                  <type>
+                    <ssl-forward-proxy/>
+                  </type>
+                  <from><member>trust</member><member>vpn</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <service><member>service-https</member></service>
+                  <category>
+                    <member>any</member>
+                  </category>
+                  <profile>corp-decrypt-profile</profile>
+                  <log-success>yes</log-success>
+                  <description>Decrypt all outbound SSL from users — forward proxy mode</description>
+                  <tag><member>ssl-inspection</member></tag>
+                </entry>
+
+                <entry name="no-decrypt-finance-banking">
+                  <action>no-decrypt</action>
+                  <type>
+                    <ssl-forward-proxy/>
+                  </type>
+                  <from><member>trust</member><member>vpn</member></from>
+                  <to><member>untrust</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>any</member></destination>
+                  <service><member>service-https</member></service>
+                  <category>
+                    <member>financial-services</member>
+                    <member>online-banking</member>
+                    <member>health-and-medicine</member>
+                  </category>
+                  <description>Exclude financial/medical sites from SSL inspection (privacy/compliance)</description>
+                </entry>
+
+                <entry name="decrypt-inbound-web-server">
+                  <action>decrypt</action>
+                  <type>
+                    <ssl-inbound-inspection>
+                      <ssl-certificate>web-dmz-cert</ssl-certificate>
+                    </ssl-inbound-inspection>
+                  </type>
+                  <from><member>untrust</member></from>
+                  <to><member>dmz</member></to>
+                  <source><member>any</member></source>
+                  <destination><member>web-dmz-01</member></destination>
+                  <service><member>service-https</member></service>
+                  <profile>inbound-decrypt-profile</profile>
+                  <description>Inbound SSL inspection for DMZ web server (IPS needs plaintext)</description>
+                </entry>
+
+              </rules>
+            </decryption>
+
+          </rulebase>
+
+        </entry>
+      </vsys>
+    </entry>
+  </devices>
+</config>

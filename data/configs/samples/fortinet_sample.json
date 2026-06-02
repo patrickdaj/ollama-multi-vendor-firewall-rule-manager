@@ -1,0 +1,192 @@
+{
+  "_comment": "Sample FortiGate policy export (FortiOS REST API format). Use with /api/v1/rag/ingest/file (vendor=fortinet, device=fg-fw01). Alternatively fetch live via /api/v1/firewall/devices/fg-fw01/ingest",
+
+  "firewall_policies": {
+    "endpoint": "/api/v2/cmdb/firewall/policy",
+    "results": [
+      {
+        "policyid": 1,
+        "name": "allow-outbound-web",
+        "status": "enable",
+        "action": "accept",
+        "srcintf": [{"name": "internal"}],
+        "dstintf": [{"name": "wan1"}],
+        "srcaddr": [{"name": "CORP_SUBNETS"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTP"}, {"name": "HTTPS"}, {"name": "DNS"}],
+        "logtraffic": "all",
+        "av-profile": "default",
+        "ips-sensor": "default",
+        "webfilter-profile": "monitor-all",
+        "comments": "Standard outbound web access"
+      },
+      {
+        "policyid": 2,
+        "name": "allow-dmz-to-internet",
+        "status": "enable",
+        "action": "accept",
+        "srcintf": [{"name": "dmz"}],
+        "dstintf": [{"name": "wan1"}],
+        "srcaddr": [{"name": "DMZ_SERVERS"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTPS"}],
+        "logtraffic": "all",
+        "av-profile": "strict",
+        "ips-sensor": "strict",
+        "comments": "DMZ servers outbound HTTPS only"
+      },
+      {
+        "policyid": 3,
+        "name": "allow-inbound-web-vip",
+        "status": "enable",
+        "action": "accept",
+        "srcintf": [{"name": "wan1"}],
+        "dstintf": [{"name": "dmz"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "VIP-WEB-SERVER"}],
+        "service": [{"name": "HTTP"}, {"name": "HTTPS"}],
+        "logtraffic": "all",
+        "av-profile": "default",
+        "ips-sensor": "default",
+        "comments": "Inbound to web server VIP"
+      },
+      {
+        "policyid": 100,
+        "name": "deny-all",
+        "status": "enable",
+        "action": "deny",
+        "srcintf": [{"name": "any"}],
+        "dstintf": [{"name": "any"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "logtraffic": "all",
+        "comments": "Implicit deny - catch all"
+      }
+    ]
+  },
+
+  "firewall_vip": {
+    "endpoint": "/api/v2/cmdb/firewall/vip",
+    "results": [
+      {
+        "name": "VIP-WEB-SERVER",
+        "extip": "198.51.100.10",
+        "extintf": "wan1",
+        "mappedip": [{"range": "192.168.10.100"}],
+        "mappedport": "443",
+        "protocol": "tcp",
+        "portforward": "enable",
+        "status": "enable",
+        "comment": "Production web server DNAT"
+      },
+      {
+        "name": "VIP-MAIL-SERVER",
+        "extip": "198.51.100.11",
+        "extintf": "wan1",
+        "mappedip": [{"range": "192.168.10.101"}],
+        "mappedport": "25",
+        "protocol": "tcp",
+        "portforward": "enable",
+        "status": "enable",
+        "comment": "Mail server SMTP DNAT"
+      }
+    ]
+  },
+
+  "central_snat": {
+    "endpoint": "/api/v2/cmdb/firewall/central-snat-map",
+    "results": [
+      {
+        "policyid": 1,
+        "status": "enable",
+        "type": "ippool",
+        "srcintf": [{"name": "internal"}],
+        "dstintf": [{"name": "wan1"}],
+        "orig-addr": [{"name": "CORP_SUBNETS"}],
+        "dst-addr": [{"name": "all"}],
+        "nat-ippool": [{"name": "CORP_OUTBOUND_POOL"}],
+        "comments": "Outbound PAT for corporate subnets"
+      }
+    ]
+  },
+
+  "firewall_address": {
+    "endpoint": "/api/v2/cmdb/firewall/address",
+    "results": [
+      {
+        "name": "CORP_SUBNETS",
+        "type": "ipmask",
+        "subnet": "10.0.0.0/8",
+        "comment": "All corporate RFC1918 space"
+      },
+      {
+        "name": "DMZ_SERVERS",
+        "type": "ipmask",
+        "subnet": "192.168.10.0/24",
+        "comment": "DMZ server network"
+      },
+      {
+        "name": "WEB-SERVER-01",
+        "type": "ipmask",
+        "subnet": "192.168.10.100/32",
+        "comment": "Primary web server"
+      },
+      {
+        "name": "MAIL-SERVER-01",
+        "type": "ipmask",
+        "subnet": "192.168.10.101/32",
+        "comment": "Mail server"
+      },
+      {
+        "name": "update-servers",
+        "type": "fqdn",
+        "fqdn": "update.microsoft.com",
+        "comment": "Windows Update FQDN"
+      }
+    ]
+  },
+
+  "firewall_addrgrp": {
+    "endpoint": "/api/v2/cmdb/firewall/addrgrp",
+    "results": [
+      {
+        "name": "DMZ_SERVERS_GROUP",
+        "member": [{"name": "WEB-SERVER-01"}, {"name": "MAIL-SERVER-01"}],
+        "comment": "All DMZ hosts"
+      }
+    ]
+  },
+
+  "firewall_service_custom": {
+    "endpoint": "/api/v2/cmdb/firewall.service/custom",
+    "results": [
+      {
+        "name": "CUSTOM-APP-8443",
+        "tcp-portrange": "8443",
+        "comment": "Internal application HTTPS"
+      },
+      {
+        "name": "SYSLOG-UDP",
+        "udp-portrange": "514",
+        "comment": "Syslog collection"
+      }
+    ]
+  },
+
+  "antivirus_profiles": {
+    "endpoint": "/api/v2/cmdb/antivirus/profile",
+    "results": [
+      {"name": "default", "comment": "Default AV profile"},
+      {"name": "strict",  "comment": "Strict AV profile - all content inspection"}
+    ]
+  },
+
+  "ips_sensors": {
+    "endpoint": "/api/v2/cmdb/ips/sensor",
+    "results": [
+      {"name": "default", "comment": "Default IPS sensor"},
+      {"name": "strict",  "comment": "All signatures, block mode"}
+    ]
+  }
+}
