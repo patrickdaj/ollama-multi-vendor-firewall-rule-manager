@@ -1,4 +1,23 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fw-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: firewall_manager
+      POSTGRES_USER: fwmgr
+      POSTGRES_PASSWORD: fwmgr
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fwmgr -d firewall_manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   chromadb:
     image: chromadb/chroma:latest
     container_name: fw-chromadb
@@ -30,13 +49,47 @@ services:
       - ./scripts:/app/scripts:ro
       - ./.env:/app/.env:ro
     environment:
+      LLM_PROVIDER: ollama
+      LLM_MODEL: llama3.2
+      EMBED_PROVIDER: ollama
+      EMBED_MODEL: nomic-embed-text
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
+      DATABASE_URL: postgresql+asyncpg://fwmgr:fwmgr@postgres:5432/firewall_manager
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      HUEY_DB_PATH: /app/data/huey.db
     depends_on:
       chromadb:
         condition: service_healthy
-    command: fw-api
+      postgres:
+        condition: service_healthy
+    command: sh -c "alembic upgrade head && fw-api"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fw-worker
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+    environment:
+      LLM_PROVIDER: ollama
+      LLM_MODEL: llama3.2
+      EMBED_PROVIDER: ollama
+      EMBED_MODEL: nomic-embed-text
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      DATABASE_URL: postgresql+asyncpg://fwmgr:fwmgr@postgres:5432/firewall_manager
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      HUEY_DB_PATH: /app/data/huey.db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python -m huey.bin.huey_consumer src.tasks.huey -w 1 -k thread -l /app/data/worker.log
 
   mcp:
     build:
@@ -50,9 +103,15 @@ services:
       - ./data:/app/data
       - ./.env:/app/.env:ro
     environment:
+      LLM_PROVIDER: ollama
+      LLM_MODEL: llama3.2
+      EMBED_PROVIDER: ollama
+      EMBED_MODEL: nomic-embed-text
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
+      DATABASE_URL: postgresql+asyncpg://fwmgr:fwmgr@postgres:5432/firewall_manager
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       MCP_TRANSPORT: sse
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8001"
@@ -65,7 +124,10 @@ services:
     depends_on:
       chromadb:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     command: fw-mcp
 
 volumes:
   chroma_data:
+  postgres_data:

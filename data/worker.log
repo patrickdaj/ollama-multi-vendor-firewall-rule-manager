@@ -1,0 +1,421 @@
+[2026-06-03 17:35:21,444] INFO:huey.consumer:MainThread:Huey consumer started with 1 thread, PID 1 at 2026-06-03 17:35:21.444560
+[2026-06-03 17:35:21,444] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2026-06-03 17:35:21,444] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2026-06-03 17:35:21,444] INFO:huey.consumer:MainThread:The following commands are available:
++ src.tasks.import_tasks.run_import_preview
++ src.tasks.gap_tasks.run_gap_detection
+[2026-06-03 17:35:49,913] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: d9dcdb0f-9f7c-4aff-bf04-fc8cc29ee5c9 1 retries
+[2026-06-03 17:35:51,213] INFO:huey:Worker-1:src.tasks.import_tasks.run_import_preview: d9dcdb0f-9f7c-4aff-bf04-fc8cc29ee5c9 1 retries executed in 1.297s
+[2026-06-03 17:37:47,799] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6 1 retries
+[2026-06-03 17:37:47,839] ERROR:huey:Worker-1:Unhandled exception in task 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 451, in _execute
+    task_value = task.execute()
+                 ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 962, in execute
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 38, in run_import_preview
+    result = asyncio.run(_async_preview(group_id, device_name, limit))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 57, in _async_preview
+    device = (await session.execute(
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 448, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2372, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2112, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1191, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3295, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 144, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3319, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1371, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1309, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 729, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1164, in do_ping
+    dbapi_connection.ping()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 818, in ping
+    self._handle_exception(error)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 799, in _handle_exception
+    raise error
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 816, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 825, in _async_ping
+    await tr.start()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 354, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 369, in query
+RuntimeError: Task <Task pending name='Task-6' coro=<_async_preview() running at /app/src/tasks/import_tasks.py:57> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+[2026-06-03 17:37:47,847] INFO:huey:Worker-1:Requeueing 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6, 0 retries
+[2026-06-03 17:37:47,847] INFO:huey:Worker-1:Added task 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6 to schedule, eta 2026-06-03 17:37:57.847129
+[2026-06-03 17:37:47,848] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: d53a62bb-eb7c-4587-a975-995b692c1ff6 1 retries
+[2026-06-03 17:37:47,882] INFO:huey:Worker-1:src.tasks.import_tasks.run_import_preview: d53a62bb-eb7c-4587-a975-995b692c1ff6 1 retries executed in 0.034s
+[2026-06-03 17:37:51,355] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: 20adad56-755e-4e2d-b11d-06672e508f4e 1 retries
+[2026-06-03 17:37:51,361] ERROR:huey:Worker-1:Unhandled exception in task 20adad56-755e-4e2d-b11d-06672e508f4e.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 451, in _execute
+    task_value = task.execute()
+                 ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 962, in execute
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 38, in run_import_preview
+    result = asyncio.run(_async_preview(group_id, device_name, limit))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 57, in _async_preview
+    device = (await session.execute(
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 448, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2372, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2112, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1191, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3295, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 144, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3319, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1371, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1309, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 729, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1164, in do_ping
+    dbapi_connection.ping()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 818, in ping
+    self._handle_exception(error)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 799, in _handle_exception
+    raise error
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 816, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 825, in _async_ping
+    await tr.start()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 354, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 369, in query
+RuntimeError: Task <Task pending name='Task-16' coro=<_async_preview() running at /app/src/tasks/import_tasks.py:57> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+[2026-06-03 17:37:51,365] INFO:huey:Worker-1:Requeueing 20adad56-755e-4e2d-b11d-06672e508f4e, 0 retries
+[2026-06-03 17:37:51,366] INFO:huey:Worker-1:Added task 20adad56-755e-4e2d-b11d-06672e508f4e to schedule, eta 2026-06-03 17:38:01.365585
+[2026-06-03 17:37:59,008] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6 @2026-06-03 17:37:57.847129
+[2026-06-03 17:37:59,057] INFO:huey:Worker-1:src.tasks.import_tasks.run_import_preview: 6dafb5a9-5c81-4bdd-b7b4-fa677ebf57f6 @2026-06-03 17:37:57.847129 executed in 0.048s
+[2026-06-03 17:38:01,534] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: 20adad56-755e-4e2d-b11d-06672e508f4e @2026-06-03 17:38:01.365585
+[2026-06-03 17:38:01,539] ERROR:huey:Worker-1:Unhandled exception in task 20adad56-755e-4e2d-b11d-06672e508f4e.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 451, in _execute
+    task_value = task.execute()
+                 ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 962, in execute
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 38, in run_import_preview
+    result = asyncio.run(_async_preview(group_id, device_name, limit))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/tasks/import_tasks.py", line 57, in _async_preview
+    device = (await session.execute(
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 448, in execute
+    result = await greenlet_spawn(
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2372, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2112, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1191, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3295, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 144, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3319, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1371, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1309, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 729, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1164, in do_ping
+    dbapi_connection.ping()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 818, in ping
+    self._handle_exception(error)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 799, in _handle_exception
+    raise error
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 816, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 825, in _async_ping
+    await tr.start()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 354, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 369, in query
+RuntimeError: Task <Task pending name='Task-26' coro=<_async_preview() running at /app/src/tasks/import_tasks.py:57> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+[2026-06-03 17:40:07,358] INFO:huey.consumer:MainThread:Received SIGTERM
+[2026-06-03 17:40:07,447] INFO:huey.consumer:MainThread:Shutting down
+[2026-06-03 17:40:07,447] INFO:huey.consumer:MainThread:Consumer exiting.
+[2026-06-03 17:40:09,233] INFO:huey.consumer:MainThread:Huey consumer started with 1 thread, PID 1 at 2026-06-03 17:40:09.232977
+[2026-06-03 17:40:09,233] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2026-06-03 17:40:09,233] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2026-06-03 17:40:09,233] INFO:huey.consumer:MainThread:The following commands are available:
++ src.tasks.import_tasks.run_import_preview
++ src.tasks.gap_tasks.run_gap_detection
+[2026-06-03 17:40:23,057] INFO:huey:Worker-1:Executing src.tasks.import_tasks.run_import_preview: 43d60844-b7ec-4993-b3cf-0bbb247a6459 1 retries
+[2026-06-03 17:40:24,331] INFO:huey:Worker-1:src.tasks.import_tasks.run_import_preview: 43d60844-b7ec-4993-b3cf-0bbb247a6459 1 retries executed in 1.272s
+[2026-06-04 00:13:46,319] INFO:huey:Worker-1:Executing src.tasks.gap_tasks.run_gap_detection: 0d7f248f-21dd-4e58-b100-6ac2520cfab4 1 retries
+[2026-06-04 00:13:46,572] ERROR:huey:Worker-1:Unhandled exception in task 0d7f248f-21dd-4e58-b100-6ac2520cfab4.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 451, in _execute
+    task_value = task.execute()
+                 ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/huey/api.py", line 962, in execute
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/tasks/gap_tasks.py", line 44, in run_gap_detection
+    result = _run(_async_detect(group_id, vendor))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/src/tasks/gap_tasks.py", line 21, in _run
+    return loop.run_until_complete(coro)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/src/tasks/gap_tasks.py", line 55, in _async_detect
+    result = await detect_gaps(
+             ^^^^^^^^^^^^^^^^^^
+  File "/app/src/api/routes/translations.py", line 534, in detect_gaps
+    group = await session.get(DeviceGroup, group_id)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/ext/asyncio/session.py", line 591, in get
+    return await greenlet_spawn(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 3701, in get
+    return self._get_impl(
+           ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 3880, in _get_impl
+    return db_load_fn(
+           ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/loading.py", line 695, in load_on_pk_identity
+    session.execute(
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2372, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2260, in _execute_internal
+    conn = self._connection_for_bind(bind)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 2112, in _connection_for_bind
+    return trans._connection_for_bind(engine, execution_options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<string>", line 2, in _connection_for_bind
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/state_changes.py", line 137, in _go
+    ret_value = fn(self, *arg, **kw)
+                ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py", line 1191, in _connection_for_bind
+    conn = bind.connect()
+           ^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3295, in connect
+    return self._connection_cls(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 144, in __init__
+    self._dbapi_connection = engine.raw_connection()
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py", line 3319, in raw_connection
+    return self.pool.connect()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 448, in connect
+    return _ConnectionFairy._checkout(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1371, in _checkout
+    with util.safe_reraise():
+         ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/langhelpers.py", line 122, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py", line 1309, in _checkout
+    result = pool._dialect._do_ping_w_event(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 729, in _do_ping_w_event
+    return self.do_ping(dbapi_connection)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 1164, in do_ping
+    dbapi_connection.ping()
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 818, in ping
+    self._handle_exception(error)
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 799, in _handle_exception
+    raise error
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 816, in ping
+    _ = self.await_(self._async_ping())
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/util/_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+            ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py", line 825, in _async_ping
+    await tr.start()
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/transaction.py", line 146, in start
+    await self._connection.execute(query)
+  File "/usr/local/lib/python3.12/site-packages/asyncpg/connection.py", line 354, in execute
+    result = await self._protocol.query(query, timeout)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "asyncpg/protocol/protocol.pyx", line 369, in query
+RuntimeError: Task <Task pending name='Task-4' coro=<_async_detect() running at /app/src/tasks/gap_tasks.py:55> cb=[_run_until_complete_cb() at /usr/local/lib/python3.12/asyncio/base_events.py:181]> got Future <Future pending cb=[BaseProtocol._on_waiter_completed()]> attached to a different loop
+[2026-06-04 00:13:46,600] INFO:huey:Worker-1:Requeueing 0d7f248f-21dd-4e58-b100-6ac2520cfab4, 0 retries
+[2026-06-04 00:13:46,600] INFO:huey:Worker-1:Added task 0d7f248f-21dd-4e58-b100-6ac2520cfab4 to schedule, eta 2026-06-04 00:14:01.600176
+[2026-06-04 00:14:02,584] INFO:huey:Worker-1:Executing src.tasks.gap_tasks.run_gap_detection: 0d7f248f-21dd-4e58-b100-6ac2520cfab4 @2026-06-04 00:14:01.600176
+[2026-06-04 00:14:02,721] INFO:huey:Worker-1:src.tasks.gap_tasks.run_gap_detection: 0d7f248f-21dd-4e58-b100-6ac2520cfab4 @2026-06-04 00:14:01.600176 executed in 0.135s
+[2026-06-04 01:02:28,015] INFO:huey.consumer:MainThread:Received SIGTERM
+[2026-06-04 01:02:28,113] INFO:huey.consumer:MainThread:Shutting down
+[2026-06-04 01:02:28,113] INFO:huey.consumer:MainThread:Consumer exiting.
+[2026-06-04 01:02:31,842] INFO:huey.consumer:MainThread:Huey consumer started with 1 thread, PID 1 at 2026-06-04 01:02:31.842512
+[2026-06-04 01:02:31,842] INFO:huey.consumer:MainThread:Scheduler runs every 1 second(s).
+[2026-06-04 01:02:31,842] INFO:huey.consumer:MainThread:Periodic tasks are enabled.
+[2026-06-04 01:02:31,842] INFO:huey.consumer:MainThread:The following commands are available:
++ src.tasks.import_tasks.run_import_preview
++ src.tasks.gap_tasks.run_gap_detection
++ src.tasks.push_tasks.run_push_job

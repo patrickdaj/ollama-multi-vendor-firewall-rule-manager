@@ -90,10 +90,12 @@
       {"id": "port-stls",    "name": "SYSLOG-TLS",   "protocol": "TCP", "port": "6514"},
       {"id": "port-pg",      "name": "POSTGRESQL",   "protocol": "TCP", "port": "5432"},
       {"id": "port-backup",  "name": "BACKUP-AGENT", "protocol": "TCP", "port": "9102"},
-      {"id": "port-rdp",     "name": "RDP",          "protocol": "TCP", "port": "3389"},
-      {"id": "port-smb",     "name": "SMB",          "protocol": "TCP", "port": "445"}
+      {"id": "port-rdp",     "name": "RDP",          "protocol": "TCP",  "port": "3389"},
+      {"id": "port-smb",     "name": "SMB",          "protocol": "TCP",  "port": "445"},
+      {"id": "port-icmp",    "name": "ICMP-Echo",    "protocol": "ICMP", "icmpType": 8, "icmpCode": 0},
+      {"id": "port-http-alt","name": "HTTP-ALT",     "protocol": "TCP",  "port": "8080-8090"}
     ],
-    "paging": {"count": 10}
+    "paging": {"count": 12}
   },
 
   "application_filters": {

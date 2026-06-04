@@ -5,15 +5,14 @@ import logging
 from collections import deque
 from typing import AsyncIterator
 
-from langchain_core.messages import AIMessage, HumanMessage
-from langchain_ollama import ChatOllama
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from src.config import settings
-from src.rag.chain import build_rag_chain, get_retriever, messages_to_history
+from src.llm.factory import get_chat_llm
+from src.rag.chain import _SYSTEM_PROMPT, build_rag_chain, get_retriever, messages_to_history
 
 logger = logging.getLogger(__name__)
 
-MAX_HISTORY = 20  # max turns kept in memory per session
+MAX_HISTORY = 6  # max turns kept in memory per session (3.2B model context budget)
 
 
 class FirewallChatBot:
@@ -44,24 +43,16 @@ class FirewallChatBot:
     async def stream(self, user_message: str) -> AsyncIterator[str]:
         """Streaming turn — yields answer tokens as they arrive."""
         lc_history = messages_to_history(list(self._history))
-        llm = ChatOllama(
-            base_url=settings.ollama_base_url,
-            model=settings.ollama_chat_model,
-            temperature=0.1,
-        )
+        llm = get_chat_llm()
         # For streaming we use the LLM directly with retrieved context
         retriever = get_retriever()
         vs_results = await retriever.ainvoke(user_message)
         context = "\n\n".join(d.page_content for d in vs_results)
 
         messages = [
+            SystemMessage(content=_SYSTEM_PROMPT.format(context=context)),
             *lc_history,
-            HumanMessage(
-                content=(
-                    f"Context from firewall knowledge base:\n{context}\n\n"
-                    f"Question: {user_message}"
-                )
-            ),
+            HumanMessage(content=user_message),
         ]
 
         full_response = ""

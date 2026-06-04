@@ -5,7 +5,7 @@ from fastapi import APIRouter, UploadFile
 from pydantic import BaseModel
 
 from src.rag.loader import ingest_raw_text
-from src.rag.vectorstore import get_vectorstore
+from src.rag.vectorstore import build_filter, get_vectorstore
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -40,7 +40,7 @@ async def search(q: str, vendor: str = "", device: str = "", limit: int = 10) ->
         where["vendor"] = vendor
     if device:
         where["device"] = device
-    docs = vs.similarity_search(q, k=limit, filter=where or None)
+    docs = vs.similarity_search(q, k=limit, filter=build_filter(where))
     return {
         "query": q,
         "results": [

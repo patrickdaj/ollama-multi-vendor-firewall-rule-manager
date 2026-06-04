@@ -1,6 +1,6 @@
-# ollama-multi-vendor-firewall-rule-manager
+# Ignis
 
-A local-first, AI-powered firewall management platform. It connects directly to your firewalls, ingests every meaningful policy object into a semantic knowledge base, and exposes that knowledge through a chat interface and MCP tools — enabling analysis, optimization, and cross-vendor translation that would otherwise require expensive commercial tools or weeks of manual effort.
+A local-first, AI-powered firewall management platform. Connects to your firewalls, ingests every policy object into a semantic knowledge base, and exposes that knowledge through a web UI, chat interface, and MCP tools — enabling analysis, optimization, and cross-vendor policy management that would otherwise require expensive commercial tools.
 
 **Supported vendors:** Palo Alto Networks (PAN-OS), Cisco ASA, Cisco FTD, Fortinet FortiGate  
 **Runs entirely on-premises.** No cloud. No telemetry. Your configs never leave your network.
@@ -8,286 +8,100 @@ A local-first, AI-powered firewall management platform. It connects directly to 
 ---
 
 ## See it work
-![demo](demo.gif)
+
 
 Up and running in 5 commands using built-in sample configs — no live firewalls needed.
 
-    # One-time: install Ollama (https://ollama.com) and pull the models
-    ollama pull llama3.2 && ollama pull nomic-embed-text
+```bash
+ollama pull llama3.2 && ollama pull nomic-embed-text
 
-    git clone <repo> && cd ollama-multi-vendor-firewall-rule-manager
-    cp .env.example .env
-    docker compose up -d
-    docker compose exec app python scripts/bootstrap_rag.py
+git clone <repo> && cd ollama-multi-vendor-firewall-rule-manager
+cp .env.example .env
+docker compose up -d
+docker compose exec app python scripts/bootstrap_rag.py
+```
 
-This loads 306 documents across four sample firewalls (PAN-OS, FortiGate, ASA, FTD). Then:
-
-    ./scripts/chat.sh
-
-**Shadow rule detection:**
-
-    You: Which rules on pa-fw01 are shadowed and can never be matched?
-
-    Assistant: On pa-fw01, three rules are shadowed by allow-any-any-legacy at
-    position 15, which permits all traffic from any source to any destination:
-
-      1. block-servers-direct-internet (position 16)
-         Intended to deny the servers zone from reaching the internet directly.
-         Unreachable because allow-any-any-legacy matches first.
-
-      2. block-inbound-rdp (position 17)
-         Intended to block inbound RDP from untrust. Unreachable for the same reason.
-
-      3. block-inbound-smb (position 18)
-         Intended to block inbound SMB/RPC. Also unreachable.
-
-    Recommendation: Remove or disable allow-any-any-legacy (tagged 'legacy',
-    'cleanup-needed'). The three block rules below it will become active immediately.
-
-**Cross-vendor translation:**
-
-    You: Translate the outbound PAT rule from pa-fw01 to FortiGate CLI syntax
-
-    Assistant: The nat-outbound-pat rule on pa-fw01 translates all internal traffic to
-    203.0.113.1 via PAT. The FortiGate equivalent uses a central-SNAT-map entry:
-
-      config firewall central-snat-map
-          edit 1
-              set srcintf "trust" "servers" "vpn" "dmz"
-              set dstintf "untrust"
-              set orig-addr "grp-all-internal"
-              set dst-addr "all"
-              set nat enable
-              set nat-ippool "pool-outbound"
-          next
-      end
-
-      config firewall ippool
-          edit "pool-outbound"
-              set startip 203.0.113.1
-              set endip   203.0.113.1
-              set type overload
-          next
-      end
-
-    Note: Ensure the IP pool "pool-outbound" exists before applying the SNAT map.
-
-RAG search is instant. AI chat runs locally via Ollama — Apple Silicon (Metal) and NVIDIA GPUs are fully utilized since Ollama runs natively on the host.
+Then open **http://localhost:8080** for the web UI. The Ignis AI dock is pinned to the bottom of every page — type your task and press Enter.
 
 ---
 
-## What it manages
+## What it does
 
-This platform ingests and reasons over the complete policy state of every connected device:
+### Observe — understand your current state
 
-| Tier | Objects |
-|------|---------|
-| **Policy** | Security rules, NAT (static/dynamic/PAT/DNAT), decryption/SSL inspection, DoS protection, authentication/captive portal, QoS |
-| **Objects** | Addresses (host/network/range/FQDN), address groups, services, service groups, applications, application groups/filters, URL categories, GeoIP regions |
-| **Threat & Profiles** | Antivirus, IPS/vulnerability, anti-spyware, URL filtering, DNS security, file blocking, sandboxing, SSL inspection profiles |
-| **Dynamic Intelligence** | External Dynamic Lists (EDLs), threat feeds, custom threat signatures |
-| **Identity** | User groups (User-ID/FSSO), HIP profiles, ZTNA tags, device identity |
-| **Topology** | Zones, interfaces, VPN tunnels, routing context |
+- Ingest the complete policy from every connected device (rules, NAT, objects, profiles, EDLs, zones)
+- Snapshot-based version history with automatic diff tracking between syncs
+- Semantic search and AI chat over all policy data via ChromaDB + local LLM
+- Shadow rule detection, redundancy analysis, permissive rule auditing
 
----
+### Manage — define what should be there
 
-## Architecture
-
-```mermaid
-flowchart TB
-  subgraph firewalls [Firewalls]
-    direction LR
-    pa["Palo Alto Networks<br/>PAN-OS"]
-    asa["Cisco ASA<br/>REST API"]
-    ftd["Cisco FTD<br/>FMC REST"]
-    fg["FortiGate<br/>REST v2"]
-  end
-
-  connectors["Vendor connectors"]
-  models["Vendor-agnostic policy models<br/>FirewallRule, NATRule, ApplicationObject, EDL, DecryptionRule"]
-  rag["RAG pipeline<br/>text → embeddings → ChromaDB"]
-  api["FastAPI + WebSocket chat<br/>REST API"]
-  mcp["MCP Server<br/>Claude Desktop / any MCP client"]
-  llm["Ollama LLM<br/>local, native model"]
-
-  pa --> connectors
-  asa --> connectors
-  ftd --> connectors
-  fg --> connectors
-  connectors --> models
-  models --> rag
-  rag --> api
-  rag --> mcp
-  api --> llm
-  mcp --> llm
-```
-
-**Why direct-to-device?**  
-Panorama, FortiManager, and Cisco Defense Orchestrator are management platforms in their own right — adding another abstraction layer on top of them makes the system more complex without adding value. This platform is the management layer. It connects directly to PAN-OS firewalls, FortiGate devices, ASA appliances, and FMC (which is the native API for FTD). Every vendor gets the same semantic treatment regardless of where it lives in your network.
-
-**How the intelligence layer works:**  
-The LLM (running locally via Ollama) has broad knowledge of firewall concepts, vendor CLI syntax, REST API structures, and security best practices from its training data. What it lacks is knowledge of *your* environment — your device names, your rule contents, your object values, your policy decisions. The RAG pipeline bridges that gap: policy data ingested from your devices becomes a searchable vector store. When you ask a question, relevant chunks of your actual data are retrieved and passed to the LLM as context. The result is natural-language reasoning over your real policy state.
-
-**MCP makes it actionable:**  
-The Model Context Protocol server exposes structured tools — search, analyze, translate, optimize — that any MCP-capable client (Claude Desktop, custom agents) can call. Tools can read from the vector store or reach out to live devices, giving the LLM the ability to act on what it reasons about.
+- **Group hierarchy** — group firewalls into a tree; policy defined at a group level is inherited by all child groups and devices
+- **Vendor-agnostic group policy** — write rules once using logical zone names and normalized objects; the platform handles vendor-specific rendering
+- **AI-assisted translation** — when a new vendor is added to a group, gap detection identifies which objects and rule fields need vendor-specific translations; the AI proposes translations, a human approves, and from that point forward pushes are deterministic
+- **Import policy from device** — promote a device's existing observed-state policy to group desired-state: the AI normalizes each rule and object to vendor-agnostic form, you review and confirm
+- **Push engine** (future phase) — once translations are approved, push the desired-state policy to devices
 
 ---
 
-## Capabilities
+## Documentation
 
-### Cross-vendor policy translation
-Generate equivalent config for any supported vendor from an existing rule or NAT entry. The LLM knows the syntax of every vendor; RAG provides your specific object names and existing examples on the target platform.
-
-```
-"Translate rule allow-web-out from pa-fw01 to FortiGate CLI syntax"
-"Convert the outbound-pat NAT rule on asa-core to PAN-OS"
-"Generate FortiGate VIP config equivalent to the webserver-dnat rule on pa-fw01"
-```
-
-### Policy analysis
-```
-"Find all shadow rules on pa-fw01"           → rules that can never be hit due to ordering
-"Find redundant address objects on fg-fw01"   → objects with duplicate IP values
-"Which rules allow any/any on any device?"    → permissive rule detection
-"Audit pa-fw01 for rules missing logging"     → compliance gap analysis
-```
-
-### Optimization
-```
-"Give me a prioritized optimization plan for pa-fw01"
-→ shadow rules, redundant objects, permissive rules, disabled cleanup,
-  consolidation candidates — each with severity and recommended fix
-```
-
-### Semantic search
-```
-"Which rules allow RDP to the database subnet on any device?"
-"What address objects reference the 10.10.10.0/24 range?"
-"Which NAT rules perform DNAT to the DMZ web servers?"
-"Show me all rules with the strict-av antivirus profile applied"
-```
-
-### Cross-vendor comparison
-```
-"Compare the security coverage of pa-fw01 and fg-fw01"
-→ rules on A not covered by B, rules on B not covered by A, behavioral differences
-```
+| Document | Contents |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | System components, data model, request flows |
+| [docs/policy-management.md](docs/policy-management.md) | Group hierarchy, rulebases, zone mappings, translation workflow |
+| [docs/vendor-support.md](docs/vendor-support.md) | Per-vendor object coverage, translation complexity matrix |
 
 ---
 
-## Getting started
+## Quick start
 
 ### Prerequisites
-- [Ollama](https://ollama.com) installed and running natively on the host
+
 - Docker + Docker Compose
-- 8 GB RAM minimum (16 GB recommended)
-- 10 GB disk space for models
+- 8 GB RAM minimum (16 GB recommended for larger models)
+- **Ollama** (default) — [install](https://ollama.com), runs natively for full GPU/Metal acceleration
+- Or: OpenAI or Anthropic API key (set `LLM_PROVIDER` in `.env`)
 
-### Start the platform
+### Start
 
 ```bash
-# Pull models once (runs natively — uses Metal on Apple Silicon, CUDA on NVIDIA)
-ollama pull llama3.2
-ollama pull nomic-embed-text
-
-cp .env.example .env
-# Edit .env — add your firewall device IPs and credentials
-
+cp .env.example .env          # edit LLM_PROVIDER, model, and device credentials
+ollama pull llama3.2 && ollama pull nomic-embed-text
 docker compose up -d
-# Services: chromadb (:8000), api (:8080), mcp (:8001)
-# Ollama runs on the host at :11434 — containers reach it via host.docker.internal
 ```
 
-### Add your devices
+Services: web UI + API at `:8080`, MCP server at `:8001`, ChromaDB at `:8000`, Postgres at `:5432`.
 
-In `.env`, set `FIREWALL_DEVICES` as a JSON array:
+### Add devices
 
-```bash
-FIREWALL_DEVICES='[
-  {
-    "name": "pa-fw01",
-    "vendor": "paloalto",
-    "host": "10.0.0.1",
-    "username": "admin",
-    "password": "secret",
-    "api_key": "LUFRPT1..."
-  },
-  {
-    "name": "asa-core",
-    "vendor": "cisco_asa",
-    "host": "10.0.0.2",
-    "username": "admin",
-    "password": "secret",
-    "verify_ssl": false
-  },
-  {
-    "name": "ftd-edge",
-    "vendor": "cisco_ftd",
-    "host": "10.0.0.3",
-    "username": "admin",
-    "password": "secret"
-  },
-  {
-    "name": "fg-fw01",
-    "vendor": "fortinet",
-    "host": "10.0.0.4",
-    "username": "admin",
-    "password": "secret",
-    "verify_ssl": false
-  }
-]'
-```
-
-**Vendor values:**
-| Value | Device | API used |
-|-------|--------|----------|
-| `paloalto` | PAN-OS firewall | PAN-OS XML API (pan-os-python) |
-| `cisco_asa` | Cisco ASA (9.3+) | ASA REST API |
-| `cisco_asa_ssh` | Cisco ASA (pre-9.3) | CLI via SSH (netmiko) |
-| `cisco_ftd` | Cisco FTD | Firepower Management Center REST API |
-| `fortinet` | FortiGate | FortiOS REST API v2 |
-
-### Ingest a device
+Register devices via the UI (Devices page) or API:
 
 ```bash
-# Pull full policy from a live device and store it
-curl -X POST http://localhost:8080/api/v1/firewall/devices/pa-fw01/ingest
-
-# Or bootstrap without live devices using sample configs
-curl -X POST http://localhost:8080/api/v1/rag/ingest/file \
-  -F file=@data/configs/samples/paloalto_sample.xml \
-  -F vendor=paloalto -F device=pa-fw01
-```
-
-### Chat
-
-```bash
-# REST (single turn)
-curl -X POST http://localhost:8080/api/v1/chat \
+curl -X POST http://localhost:8080/api/v1/devices \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"s1","message":"Which rules allow outbound traffic from the trust zone?"}'
-
-# CLI (streaming) — runs fw-chat inside the fw-app container
-./scripts/chat.sh
+  -d '{"name":"pa-fw01","vendor":"paloalto","host":"10.0.0.1","username":"admin","password":"secret"}'
 ```
 
-### WebSocket streaming
+Then onboard (pull full policy from device):
 
-```javascript
-const ws = new WebSocket('ws://localhost:8080/ws/chat/my-session');
-ws.send(JSON.stringify({ action: 'chat', message: 'Find shadow rules on pa-fw01' }));
-ws.onmessage = (e) => {
-  const { type, content } = JSON.parse(e.data);
-  if (type === 'token') process.stdout.write(content);
-};
+```bash
+curl -X POST http://localhost:8080/api/v1/firewall/devices/pa-fw01/onboard
 ```
+
+**Vendor values:** `paloalto` · `cisco_asa` · `cisco_asa_ssh` · `cisco_ftd` · `fortinet`
+
+### Bootstrap sample data (no live devices needed)
+
+```bash
+docker compose exec app python scripts/bootstrap_rag.py
+```
+
+Loads 306 documents across four sample firewalls (PAN-OS, FortiGate, ASA, FTD).
 
 ### Claude Desktop (MCP)
 
-Add the `mcpServers` block to your Claude Desktop config file — **merge it in**, don't replace the whole file:
-
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
@@ -300,18 +114,50 @@ Add the `mcpServers` block to your Claude Desktop config file — **merge it in*
 }
 ```
 
-Then **restart Claude Desktop**. Claude Desktop will pipe stdio into the running `fw-mcp` container each time it needs to call a tool — make sure `docker compose up -d` is running before opening Claude Desktop.
-
-> The `-e MCP_TRANSPORT=stdio` override is needed because the container normally runs in SSE mode (for HTTP clients on port 8001). Claude Desktop uses stdio, so we override that per-exec.
+Restart Claude Desktop. Requires `docker compose up -d` to be running.
 
 ---
 
-## MCP tools reference
+## Example queries
+
+```
+"Which rules on pa-fw01 are shadowed and can never be matched?"
+"Find all rules that allow any/any on any device"
+"Translate the outbound PAT rule from pa-fw01 to FortiGate CLI syntax"
+"Compare security coverage between pa-fw01 and fg-fw01"
+"Which address objects reference the 10.10.10.0/24 range?"
+"Audit pa-fw01 for rules missing logging"
+```
+
+---
+
+## Development
+
+```bash
+uv pip install -e .[dev]
+
+pytest                          # full test suite
+pytest --cov=src                # with coverage
+ruff check . && ruff format .   # lint + format
+mypy src/                       # type check
+
+fw-api                          # start API server (port 8080)
+fw-mcp                          # start MCP server (port 8001)
+fw-chat chat                    # interactive CLI chat
+
+# Frontend (requires Node 22)
+cd frontend && nvm use 22 && npm run dev    # dev server (port 5173)
+cd frontend && nvm use 22 && npm run build  # production build → src/api/static/
+```
+
+---
+
+## MCP tools
 
 | Tool | Description |
-|------|-------------|
+|---|---|
 | `search_firewall_rules` | Semantic search over security rules |
-| `search_nat_rules` | Semantic search over NAT rules by type |
+| `search_nat_rules` | Semantic search over NAT rules |
 | `search_address_objects` | Find address objects by name, IP, or description |
 | `search_application_objects` | Find App-ID / application signatures |
 | `search_edls` | Search External Dynamic Lists and threat feeds |
@@ -322,50 +168,55 @@ Then **restart Claude Desktop**. Claude Desktop will pipe stdio into the running
 | `optimize_policy` | Full policy audit with prioritized recommendations |
 | `translate_rule_to_vendor` | Generate equivalent rule on target vendor |
 | `translate_nat_rule_to_vendor` | Generate equivalent NAT config on target vendor |
-| `translate_application_policy` | Translate App-ID policy across vendors |
 | `compare_device_policies` | Coverage gap analysis between two devices |
-| `analyze_decryption_coverage` | SSL inspection gap analysis |
 | `list_configured_devices` | Show registered device inventory |
 | `fetch_and_ingest_device` | Connect to live device and ingest full policy |
-| `get_live_rules` | Pull current rules from live device |
-
----
-
-## Development
-
-```bash
-uv pip install -e .[dev]
-
-pytest                          # full test suite (no live devices needed)
-pytest --cov=src                # with coverage
-ruff check . && ruff format .   # lint + format
-mypy src/                       # type check
-
-fw-api                          # start API server
-fw-mcp                          # start MCP server
-fw-chat chat                    # interactive CLI chat
-fw-ingest pa-fw01               # ingest a specific device
-```
+| `list_groups` | Show group hierarchy with device and rule counts |
+| `get_group_effective_policy` | Compute full ordered rulebase for a group |
+| `detect_translation_gaps` | Find missing vendor translations and create proposals |
+| `list_pending_proposals` | Show AI proposals awaiting review |
+| `generate_ai_translations` | Drive AI to fill empty translation proposals |
 
 ---
 
 ## Roadmap
 
 ### Phase 1 — Foundation ✅
-Security rules · NAT (all types) · Address and service objects · Security profiles · RAG pipeline · MCP tools (search, shadow, translate, optimize) · FastAPI + WebSocket chat · Docker Compose
+Security rules · NAT · Address/service objects · RAG pipeline · MCP tools · FastAPI + WebSocket chat · Docker Compose · PostgreSQL source of truth with versioned snapshots and diff tracking · Pluggable LLM (Ollama · OpenAI · Anthropic) · React web UI (dashboard, devices, policy browser, snapshot history, chat)
 
-### Phase 2 — Full object coverage 🔄
-Application objects and groups (App-ID, FortiGuard apps, OpenAppID) · Decryption / SSL inspection policies and profiles · Zone definitions · DoS and zone protection policies · Authentication and captive portal policies · GeoIP and region objects
+### Phase 2 — Full object coverage ✅
+Service groups · Application objects and groups · Decryption policies and profiles · Zone definitions · DoS and auth policies · EDLs · Security profiles · Snapshot diff viewer · Policy browser with inline JSON editor
 
-### Phase 3 — Threat intelligence
-External Dynamic Lists (EDLs) with change tracking · Threat feed metadata · Custom threat signature inventories · Scheduled policy sync with diff detection
+### Phase 3 — Group policy management ✅
+Group hierarchy · Group policy rules (pre/post rulebases) · Shared object namespace · Zone alias mappings · Vendor translation model (deterministic + AI-assisted) · AI generation for translation proposals · Translation proposal review workflow · Gap detection on new vendor onboarding · Import policy from device (AI-assisted observed→desired state promotion) · Group policy MCP tools
 
-### Phase 4 — Identity and posture
-User-ID / FSSO group ingestion · HIP profiles and objects (PAN-OS) · ZTNA tag mapping (FortiGate) · User- and device-based policy analysis
+#### Policy promotion workflow (observed → desired state)
 
-### Phase 5 — Advanced operations
-VPN topology mapping · SD-WAN policy ingestion · Compliance checking (CIS benchmarks, NIST) · Policy push with approval workflow · Change diff tracking against last-ingested snapshot
+When a device is onboarded it lands in one of three states:
 
----
+| State | Description | Path forward |
+|---|---|---|
+| No policy / scrap | Device has no useful policy or you want a clean slate | Assign to group, define policy at group level, push overwrites device |
+| Promote as-is | Device has a good policy you want to use as the group baseline | **Import to group** — convert snapshot to desired state, review, confirm |
+| Massage and promote | Device has a partial or imperfect policy to be merged or tweaked | **Import to group** with per-rule review and editing before confirming |
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/asciinema-player/3.7.0/bundle/asciinema-player.min.js"></script>
+The first case is already handled — observed state and desired state are fully separate and the push engine simply writes the group policy down. The second and third require a **"Import policy from device"** workflow:
+
+1. Read the device's latest snapshot (`PolicyObject` rows — observed, vendor-specific)
+2. AI converts each rule/object to vendor-agnostic `base_rule` / `base_data` JSONB (the reverse of the translation layer)
+3. Candidate rules/objects land in a staging review panel (diff-style: check/uncheck/edit each entry)
+4. On confirm → written as `GroupPolicyRule` / `GroupPolicyObject` rows in the group's desired state
+
+**UI entry point:** Groups page → Overview tab → "Import policy from [device]" button, available after a device is assigned to a group. Produces a side-by-side panel: observed vendor rule on the left, proposed vendor-agnostic form on the right, with inline editing before commit.
+
+### Phase 3.5 — Task queue infrastructure (pre-requisite for multi-user scale)
+Introduce an async task queue (Huey or similar) backed by Redis · Long-running operations (push, drift detection, snapshot ingestion, RAG re-index) offloaded to workers · Job status polling via API · Per-user / per-device job isolation · Required before Phase 4 push engine goes multi-user
+
+### Phase 4 — Push engine
+Deterministic vendor translation layer · Effective policy computation · Push with pre-flight diff preview · Drift detection (desired vs observed state) · Rollback support · All push jobs executed via task queue workers (see Phase 3.5)
+
+### Phase 5 — Threat intelligence and identity
+EDL change tracking · Scheduled policy sync · User-ID / FSSO group ingestion · HIP profiles (PAN-OS) · ZTNA tag mapping
+
+### Phase 6 — Compliance and ecosystem
+CIS benchmark checks · NIST policy compliance · IPAM/CMDB enrichment (Netbox, Infoblox) · ServiceNow CMDB · Terraform provider for policy-as-code

@@ -18,8 +18,8 @@ from mcp.server.fastmcp import FastMCP
 from src.config import settings
 from src.firewall.vendors import get_connector
 from src.rag.chain import build_rag_chain
-from src.rag.loader import ingest_policy
-from src.rag.vectorstore import get_vectorstore
+from src.rag.ingest import onboard_device
+from src.rag.vectorstore import build_filter, get_vectorstore
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def search_firewall_rules(
     if enabled_only:
         where["enabled"] = "True"
 
-    docs = get_vectorstore().similarity_search(query, k=limit, filter=where)
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
     if not docs:
         return "No matching security rules found."
 
@@ -101,7 +101,7 @@ def search_nat_rules(
     if device:
         where["device"] = device
 
-    docs = get_vectorstore().similarity_search(query, k=limit, filter=where)
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
     if not docs:
         return "No matching NAT rules found."
     return "\n\n---\n\n".join(
@@ -125,7 +125,7 @@ def search_address_objects(
     if device:
         where["device"] = device
 
-    docs = get_vectorstore().similarity_search(query, k=limit, filter=where)
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
     if not docs:
         return "No matching address objects found."
     return "\n\n---\n\n".join(
@@ -170,7 +170,7 @@ def find_shadow_rules(device: str | None = None, vendor: str | None = None) -> s
     if vendor:
         where["vendor"] = vendor
 
-    docs = get_vectorstore().similarity_search("any any allow all traffic deny", k=50, filter=where)
+    docs = get_vectorstore().similarity_search("any any allow all traffic deny", k=50, filter=build_filter(where))
     if not docs:
         return "No rules found to analyze."
 
@@ -206,7 +206,7 @@ def find_redundant_objects(device: str | None = None, vendor: str | None = None)
     if vendor:
         where["vendor"] = vendor
 
-    docs = get_vectorstore().similarity_search("host network address IP", k=200, filter=where)
+    docs = get_vectorstore().similarity_search("host network address IP", k=200, filter=build_filter(where))
     if not docs:
         return "No address objects found."
 
@@ -249,7 +249,7 @@ def find_permissive_rules(device: str | None = None, vendor: str | None = None) 
         where["vendor"] = vendor
 
     docs = get_vectorstore().similarity_search(
-        "source any destination any permit all traffic unrestricted", k=30, filter=where
+        "source any destination any permit all traffic unrestricted", k=30, filter=build_filter(where)
     )
     if not docs:
         return "No obviously permissive rules found."
@@ -287,9 +287,9 @@ def optimize_policy(device: str, vendor: str | None = None) -> str:
     if vendor:
         where["vendor"] = vendor
 
-    rules_docs = get_vectorstore().similarity_search("rule policy", k=100, filter={**where, "type": "security_rule"})
-    nat_docs = get_vectorstore().similarity_search("nat", k=50, filter={**where, "type": "nat_rule"})
-    addr_docs = get_vectorstore().similarity_search("address", k=100, filter={**where, "type": "address_object"})
+    rules_docs = get_vectorstore().similarity_search("rule policy", k=100, filter=build_filter({**where, "type": "security_rule"}))
+    nat_docs = get_vectorstore().similarity_search("nat", k=50, filter=build_filter({**where, "type": "nat_rule"}))
+    addr_docs = get_vectorstore().similarity_search("address", k=100, filter=build_filter({**where, "type": "address_object"}))
 
     context = (
         f"=== Security Rules ({len(rules_docs)}) ===\n"
@@ -344,7 +344,7 @@ def translate_rule_to_vendor(
     source_docs = vs.similarity_search(
         rule_name,
         k=3,
-        filter={"type": "security_rule", "device": source_device},
+        filter=build_filter({"type": "security_rule", "device": source_device}),
     )
     if not source_docs:
         return f"Rule '{rule_name}' not found on device '{source_device}'. Ingest the policy first."
@@ -352,7 +352,7 @@ def translate_rule_to_vendor(
     source_text = source_docs[0].page_content
 
     # Find examples of similar rules on the target vendor for grounding
-    example_docs = vs.similarity_search(source_text, k=5, filter={"type": "security_rule", "vendor": target_vendor})
+    example_docs = vs.similarity_search(source_text, k=5, filter=build_filter({"type": "security_rule", "vendor": target_vendor}))
     examples = "\n\n".join(d.page_content for d in example_docs) if example_docs else "No existing examples found."
 
     chain = build_rag_chain()
@@ -387,7 +387,7 @@ def translate_nat_rule_to_vendor(
     vs = get_vectorstore()
 
     source_docs = vs.similarity_search(
-        rule_name, k=3, filter={"type": "nat_rule", "device": source_device}
+        rule_name, k=3, filter=build_filter({"type": "nat_rule", "device": source_device})
     )
     if not source_docs:
         return f"NAT rule '{rule_name}' not found on '{source_device}'."
@@ -396,7 +396,7 @@ def translate_nat_rule_to_vendor(
     nat_type = source_docs[0].metadata.get("nat_type", "")
 
     example_docs = vs.similarity_search(
-        source_text, k=5, filter={"type": "nat_rule", "vendor": target_vendor}
+        source_text, k=5, filter=build_filter({"type": "nat_rule", "vendor": target_vendor})
     )
     examples = "\n\n".join(d.page_content for d in example_docs) if example_docs else "No existing examples."
 
@@ -427,8 +427,8 @@ def compare_device_policies(device_a: str, device_b: str) -> str:
         device_b: Second device name
     """
     vs = get_vectorstore()
-    docs_a = vs.similarity_search("rule", k=50, filter={"type": "security_rule", "device": device_a})
-    docs_b = vs.similarity_search("rule", k=50, filter={"type": "security_rule", "device": device_b})
+    docs_a = vs.similarity_search("rule", k=50, filter=build_filter({"type": "security_rule", "device": device_a}))
+    docs_b = vs.similarity_search("rule", k=50, filter=build_filter({"type": "security_rule", "device": device_b}))
 
     if not docs_a and not docs_b:
         return f"No rules found for either device. Ingest policies first."
@@ -452,6 +452,152 @@ def compare_device_policies(device_a: str, device_b: str) -> str:
 
 
 # ── Live device ───────────────────────────────────────────────────────────────
+
+
+@mcp.tool()
+def search_service_objects(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    include_groups: bool = True,
+    limit: int = 10,
+) -> str:
+    """Search service objects and service groups by name, port, or protocol."""
+    vs = get_vectorstore()
+    results = []
+    for obj_type in (["service_object", "service_group"] if include_groups else ["service_object"]):
+        where: dict = {"type": obj_type}
+        if vendor:
+            where["vendor"] = vendor
+        if device:
+            where["device"] = device
+        results.extend(vs.similarity_search(query, k=limit, filter=build_filter(where)))
+    if not results:
+        return "No matching service objects or groups found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}] "
+        f"({d.metadata.get('type')})\n{d.page_content}"
+        for d in results[:limit]
+    )
+
+
+@mcp.tool()
+def search_decryption_rules(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    limit: int = 10,
+) -> str:
+    """Search SSL/TLS decryption rules and decryption profiles."""
+    vs = get_vectorstore()
+    results = []
+    for obj_type in ["decryption_rule", "decryption_profile"]:
+        where: dict = {"type": obj_type}
+        if vendor:
+            where["vendor"] = vendor
+        if device:
+            where["device"] = device
+        results.extend(vs.similarity_search(query, k=limit, filter=build_filter(where)))
+    if not results:
+        return "No matching decryption rules or profiles found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}] "
+        f"({d.metadata.get('type')})\n{d.page_content}"
+        for d in results[:limit]
+    )
+
+
+@mcp.tool()
+def search_auth_policies(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    limit: int = 10,
+) -> str:
+    """Search authentication and captive portal policy rules."""
+    where: dict = {"type": "auth_policy"}
+    if vendor:
+        where["vendor"] = vendor
+    if device:
+        where["device"] = device
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
+    if not docs:
+        return "No matching authentication policies found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}]\n{d.page_content}"
+        for d in docs
+    )
+
+
+@mcp.tool()
+def search_url_categories(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    limit: int = 10,
+) -> str:
+    """Search custom URL categories and web filter lists."""
+    where: dict = {"type": "url_category"}
+    if vendor:
+        where["vendor"] = vendor
+    if device:
+        where["device"] = device
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
+    if not docs:
+        return "No matching URL categories found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}]\n{d.page_content}"
+        for d in docs
+    )
+
+
+@mcp.tool()
+def search_zones(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    limit: int = 10,
+) -> str:
+    """Search zone definitions and their interface assignments."""
+    where: dict = {"type": "zone"}
+    if vendor:
+        where["vendor"] = vendor
+    if device:
+        where["device"] = device
+    docs = get_vectorstore().similarity_search(query, k=limit, filter=build_filter(where))
+    if not docs:
+        return "No matching zones found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}]\n{d.page_content}"
+        for d in docs
+    )
+
+
+@mcp.tool()
+def search_application_objects(
+    query: str,
+    vendor: str | None = None,
+    device: str | None = None,
+    include_groups: bool = True,
+    limit: int = 10,
+) -> str:
+    """Search application objects (App-ID, custom apps) and application groups/filters."""
+    vs = get_vectorstore()
+    results = []
+    for obj_type in (["application", "app_group"] if include_groups else ["application"]):
+        where: dict = {"type": obj_type}
+        if vendor:
+            where["vendor"] = vendor
+        if device:
+            where["device"] = device
+        results.extend(vs.similarity_search(query, k=limit, filter=build_filter(where)))
+    if not results:
+        return "No matching application objects or groups found."
+    return "\n\n---\n\n".join(
+        f"[{d.metadata.get('device')} / {d.metadata.get('vendor')}] "
+        f"({d.metadata.get('type')})\n{d.page_content}"
+        for d in results[:limit]
+    )
 
 
 @mcp.tool()
@@ -479,12 +625,13 @@ async def fetch_and_ingest_device(device_name: str) -> str:
     try:
         async with connector:
             policy = await connector.get_policy()
-        count = ingest_policy(policy)
+        result = await onboard_device(policy, triggered_by="mcp")
         return (
-            f"Ingested {device_name} ({device.vendor}): "
+            f"Onboarded {device_name} ({device.vendor}): "
             f"{policy.rule_count()} security rules, {policy.nat_count()} NAT rules, "
             f"{len(policy.address_objects)} address objects, "
-            f"{len(policy.service_objects)} service objects → {count} total documents."
+            f"{len(policy.service_objects)} service objects → "
+            f"{result['chroma_documents']} documents (snapshot #{result['snapshot_id']})."
         )
     except Exception as e:
         logger.exception("Failed to ingest %s", device_name)
@@ -514,6 +661,260 @@ async def get_live_rules(device_name: str, rulebase: str = "security") -> str:
         return json.dumps([r.model_dump() for r in rules], indent=2, default=str)
     except Exception as e:
         return f"Error: {e}"
+
+
+# ── Group policy management ───────────────────────────────────────────────────
+
+
+@mcp.tool()
+async def list_groups() -> str:
+    """List all policy groups in the hierarchy with device and rule counts.
+
+    Groups are the desired-state containers: each group holds vendor-agnostic
+    policy rules and shared objects that are inherited by its child groups and
+    member devices.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from src.db.models import DeviceGroup
+    from src.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        rows = (await session.execute(
+            select(DeviceGroup)
+            .options(selectinload(DeviceGroup.devices), selectinload(DeviceGroup.children))
+            .order_by(DeviceGroup.name)
+        )).scalars().all()
+
+    if not rows:
+        return "No groups defined. Create groups via the web UI or API."
+
+    lines = []
+    for g in rows:
+        parent = f" (parent: #{g.parent_id})" if g.parent_id else " (root)"
+        lines.append(
+            f"- [{g.id}] {g.name}{parent} | {len(g.devices)} device(s), {len(g.children)} child group(s)"
+            + (f" — {g.description}" if g.description else "")
+        )
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def get_group_effective_policy(
+    group_name: str,
+    rule_type: str = "security",
+) -> str:
+    """Get the full ordered rulebase that a device in this group would see.
+
+    Includes pre-rules from all ancestor groups (root first) then this group,
+    followed by post-rules (this group first, root last). Device-local rules
+    are not included here.
+
+    Args:
+        group_name: Name of the group (exact match)
+        rule_type:  security | nat | decryption | dos | auth
+    """
+    from sqlalchemy import select
+    from src.db.models import DeviceGroup, GroupPolicyRule
+    from src.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        group = (await session.execute(
+            select(DeviceGroup).where(DeviceGroup.name == group_name)
+        )).scalar_one_or_none()
+        if not group:
+            return f"Group '{group_name}' not found."
+
+        # Build ancestor chain
+        chain: list[DeviceGroup] = []
+        current: DeviceGroup | None = group
+        while current is not None:
+            chain.append(current)
+            current = await session.get(DeviceGroup, current.parent_id) if current.parent_id else None
+        chain.reverse()
+
+        pre_rules = []
+        post_rules = []
+        for g in chain:
+            rows = (await session.execute(
+                select(GroupPolicyRule).where(
+                    GroupPolicyRule.device_group_id == g.id,
+                    GroupPolicyRule.rule_type == rule_type,
+                    GroupPolicyRule.rulebase == "pre",
+                ).order_by(GroupPolicyRule.position)
+            )).scalars().all()
+            for r in rows:
+                pre_rules.append(f"  [{g.name}/pre/{r.position}] {r.name} | {r.base_rule.get('action', '?')} {'enabled' if r.enabled else 'DISABLED'}")
+
+        for g in reversed(chain):
+            rows = (await session.execute(
+                select(GroupPolicyRule).where(
+                    GroupPolicyRule.device_group_id == g.id,
+                    GroupPolicyRule.rule_type == rule_type,
+                    GroupPolicyRule.rulebase == "post",
+                ).order_by(GroupPolicyRule.position)
+            )).scalars().all()
+            for r in rows:
+                post_rules.append(f"  [{g.name}/post/{r.position}] {r.name} | {r.base_rule.get('action', '?')} {'enabled' if r.enabled else 'DISABLED'}")
+
+    ancestor_str = " → ".join(g.name for g in chain[:-1])
+    header = f"Effective {rule_type} policy for group '{group_name}'"
+    if ancestor_str:
+        header += f"\nAncestor chain: {ancestor_str}"
+
+    sections = [header]
+    sections.append(f"\nPRE-RULES ({len(pre_rules)}):")
+    sections.extend(pre_rules or ["  (none)"])
+    sections.append(f"\nPOST-RULES ({len(post_rules)}):")
+    sections.extend(post_rules or ["  (none)"])
+    return "\n".join(sections)
+
+
+@mcp.tool()
+async def detect_translation_gaps(
+    group_name: str,
+    target_vendor: str,
+) -> str:
+    """Scan a group's effective policy for missing vendor translations.
+
+    Creates TranslationProposal records for each gap found. The proposals
+    start empty — use generate_ai_translations to fill them in, then review
+    and approve via the web UI.
+
+    Args:
+        group_name:    Group name (exact match)
+        target_vendor: paloalto | cisco_asa | cisco_ftd | fortinet
+    """
+    from sqlalchemy import select
+    from src.db.models import DeviceGroup
+    from src.db.session import AsyncSessionLocal
+    from src.api.routes.translations import detect_gaps
+
+    async with AsyncSessionLocal() as session:
+        group = (await session.execute(
+            select(DeviceGroup).where(DeviceGroup.name == group_name)
+        )).scalar_one_or_none()
+        if not group:
+            return f"Group '{group_name}' not found."
+        group_id = group.id
+
+    result = await detect_gaps(
+        group_id=group_id,
+        target_vendor=target_vendor,
+        triggered_by="mcp",
+    )
+
+    if result.proposals_created == 0:
+        return (
+            f"All translations are in place for group '{group_name}' → {target_vendor}. "
+            "No gaps detected."
+        )
+
+    lines = [
+        f"Gap detection complete for group '{group_name}' → {target_vendor}:",
+        f"  {result.proposals_created} proposal(s) created",
+    ]
+    if result.missing_object_translations:
+        lines.append(f"  Missing object translations ({len(result.missing_object_translations)}):")
+        for o in result.missing_object_translations[:10]:
+            lines.append(f"    - {o['object_type']}: {o['object_name']}")
+        if len(result.missing_object_translations) > 10:
+            lines.append(f"    … and {len(result.missing_object_translations) - 10} more")
+    if result.missing_rule_translations:
+        lines.append(f"  Missing rule translations ({len(result.missing_rule_translations)}):")
+        for r in result.missing_rule_translations[:10]:
+            lines.append(f"    - Rule #{r['rule_id']}: {r['rule_name']}")
+
+    lines.append("\nRun generate_ai_translations to fill these proposals in.")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def list_pending_proposals(
+    target_vendor: str | None = None,
+    limit: int = 20,
+) -> str:
+    """List pending translation proposals awaiting review.
+
+    Shows proposals that gap detection has created but that haven't been
+    approved or rejected yet. Use generate_ai_translations to fill in any
+    proposals that have empty proposed_translation fields.
+
+    Args:
+        target_vendor: Filter by vendor (optional)
+        limit:         Max proposals to show
+    """
+    from sqlalchemy import select
+    from src.db.models import TranslationProposal
+    from src.db.session import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        q = select(TranslationProposal).where(
+            TranslationProposal.status == "pending"
+        ).order_by(TranslationProposal.created_at).limit(limit)
+        if target_vendor:
+            q = q.where(TranslationProposal.target_vendor == target_vendor)
+        proposals = (await session.execute(q)).scalars().all()
+
+    if not proposals:
+        vendor_str = f" for {target_vendor}" if target_vendor else ""
+        return f"No pending proposals{vendor_str}."
+
+    empty = sum(1 for p in proposals if not p.proposed_translation)
+    lines = [f"{len(proposals)} pending proposal(s) ({empty} need AI generation):"]
+    for p in proposals:
+        has_content = "✓" if p.proposed_translation else "○ awaiting AI"
+        if p.proposal_type == "object":
+            label = f"{p.object_type}: {p.object_name}"
+        else:
+            label = f"Rule #{p.rule_id}"
+        lines.append(f"  [{p.id}] {p.proposal_type} | {label} → {p.target_vendor} | {has_content}")
+
+    if empty > 0:
+        lines.append(f"\nRun generate_ai_translations to fill the {empty} empty proposal(s).")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+async def generate_ai_translations(
+    target_vendor: str | None = None,
+    proposal_ids: list[int] | None = None,
+) -> str:
+    """Run AI generation for pending translation proposals with empty translations.
+
+    Either pass specific proposal_ids, or leave None to generate for all
+    empty pending proposals (optionally filtered by target_vendor).
+    Proposals remain pending after generation — a human must review and
+    approve them via the web UI before they take effect.
+
+    Args:
+        target_vendor:  Only generate for this vendor (optional, ignored if proposal_ids given)
+        proposal_ids:   Specific proposal IDs to generate (optional)
+    """
+    from src.api.routes.translations import generate_proposal, generate_proposals_batch
+
+    if proposal_ids:
+        results = []
+        for pid in proposal_ids:
+            result = await generate_proposal(pid)
+            results.append(result)
+        succeeded = sum(1 for r in results if r.status == "generated")
+        failed = [r for r in results if r.status == "error"]
+        lines = [f"Generated {succeeded}/{len(results)} proposals."]
+        for r in failed:
+            lines.append(f"  [#{r.proposal_id}] Failed: {r.error}")
+        return "\n".join(lines)
+
+    batch = await generate_proposals_batch(target_vendor=target_vendor)
+    if batch.processed == 0:
+        vendor_str = f" for {target_vendor}" if target_vendor else ""
+        return f"No empty pending proposals found{vendor_str}. Nothing to generate."
+
+    return (
+        f"Batch generation complete: {batch.succeeded}/{batch.processed} proposals generated"
+        + (f", {batch.failed} failed" if batch.failed else "")
+        + ".\nReview proposals via the web UI Translations page."
+    )
 
 
 def run() -> None:

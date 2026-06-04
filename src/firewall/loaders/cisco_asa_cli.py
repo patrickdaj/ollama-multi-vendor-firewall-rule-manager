@@ -12,6 +12,7 @@ from src.firewall.models import (
     NATRule,
     NATType,
     RuleAction,
+    ServiceGroup,
     ServiceObject,
 )
 
@@ -26,6 +27,18 @@ _OBJ_GRP_NET = re.compile(
 )
 _OBJ_SVC = re.compile(
     r"^object service (\S+)\s*\n\s+service (tcp|udp) destination eq (\S+)",
+    re.MULTILINE,
+)
+# Protocol-typed service group: "object-group service <name> tcp"
+#   followed by "port-object eq <port>" lines
+_OBJ_GRP_SVC_PROTO = re.compile(
+    r"^object-group service (\S+) (tcp|udp)\s*\n((?:\s+(?:port-object|description)[^\n]+\n)*)",
+    re.MULTILINE,
+)
+# Object-reference service group: "object-group service <name>"
+#   followed by "service-object object <name>" lines
+_OBJ_GRP_SVC_REF = re.compile(
+    r"^object-group service (\S+)\s*\n((?:\s+(?:service-object object|description)[^\n]+\n)*)",
     re.MULTILINE,
 )
 _ACL_LINE = re.compile(
@@ -43,6 +56,11 @@ _DYNAMIC_NAT = re.compile(
     r"nat \((\S+),(\S+)\) source dynamic (\S+) (\S+)",
     re.MULTILINE | re.IGNORECASE,
 )
+
+
+def _desc(block: str) -> str:
+    m = re.search(r"description ([^\n]+)", block)
+    return m.group(1).strip() if m else ""
 
 
 def _cidr_from_mask(ip: str, mask: str) -> str:
@@ -81,6 +99,27 @@ def load_cisco_asa_cli(path: Path, device: str) -> FirewallPolicy:
         service_objects.append(ServiceObject(
             name=m.group(1), protocol=m.group(2), port=m.group(3),
         ))
+
+    # ── Service groups ────────────────────────────────────────────────────
+    service_groups: list[ServiceGroup] = []
+    for m in _OBJ_GRP_SVC_PROTO.finditer(text):
+        ports = re.findall(r"port-object eq (\S+)", m.group(3))
+        service_groups.append(ServiceGroup(
+            name=m.group(1),
+            members=[f"{m.group(2)}/{p}" for p in ports],
+            description=_desc(m.group(3)),
+        ))
+    for m in _OBJ_GRP_SVC_REF.finditer(text):
+        # skip lines already matched as proto-typed groups
+        if _OBJ_GRP_SVC_PROTO.match(f"object-group service {m.group(1)} tcp"):
+            continue
+        refs = re.findall(r"service-object object (\S+)", m.group(2))
+        if refs:
+            service_groups.append(ServiceGroup(
+                name=m.group(1),
+                members=refs,
+                description=_desc(m.group(2)),
+            ))
 
     # ── NAT rules ─────────────────────────────────────────────────────────
     nat_rules: list[NATRule] = []
@@ -139,4 +178,5 @@ def load_cisco_asa_cli(path: Path, device: str) -> FirewallPolicy:
         vendor="cisco_asa", device=device,
         rules=rules, nat_rules=nat_rules,
         address_objects=address_objects, service_objects=service_objects,
+        service_groups=service_groups,
     )

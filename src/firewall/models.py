@@ -59,6 +59,7 @@ class AddressType(StrEnum):
     RANGE = "range"
     FQDN = "fqdn"
     GROUP = "group"
+    GEOGRAPHY = "geography"   # country / region-based (FortiGate geography, PAN-OS regions)
     ANY = "any"
 
 
@@ -92,9 +93,16 @@ class AddressObject(BaseModel):
     members: list[str] = []
     description: str = ""
     tags: list[str] = []
+    # Dynamic Address Group (DAG) fields
+    # PAN-OS: tag-expression-based groups populated by VM-Agent / API
+    # FortiGate: SDN connector dynamic objects
+    is_dynamic: bool = False
+    dynamic_filter: str = ""   # e.g. "'env.prod' and 'type.server'" (PAN-OS) or "Tag.env=prod" (FortiGate)
 
     def to_text(self) -> str:
         parts = [f"Address Object: {self.name}", f"Type: {self.type}"]
+        if self.is_dynamic:
+            parts.append(f"Dynamic: yes  Filter: {self.dynamic_filter}")
         if self.value:
             parts.append(f"Value: {self.value}")
         if self.members:

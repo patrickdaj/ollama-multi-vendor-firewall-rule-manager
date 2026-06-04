@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
-"""Bootstrap the RAG vector store from the enterprise sample config files.
+"""Bootstrap the RAG vector store and Postgres source of truth from sample configs.
 
-Run this once after starting the stack to populate ChromaDB with
-structured policy data from all four vendor sample configs.
+Run once after starting the stack to populate both stores with structured
+policy data from all four vendor sample configs.
 
 Usage:
-    python scripts/bootstrap_rag.py
-    python scripts/bootstrap_rag.py --query "shadow rules"     # verify after ingest
-    python scripts/bootstrap_rag.py --clear                    # wipe and re-ingest
+    docker compose exec app python scripts/bootstrap_rag.py
+    docker compose exec app python scripts/bootstrap_rag.py --query "shadow rules"
+    docker compose exec app python scripts/bootstrap_rag.py --clear
 """
 from __future__ import annotations
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
 
-# Add project root to path so src/ imports work without pip install
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.db.session import init_db
 from src.firewall.loaders import load_from_file
-from src.rag.loader import ingest_policy
+from src.rag.ingest import onboard_device
 from src.rag.vectorstore import get_vectorstore
 
 SAMPLES_DIR = Path(__file__).parent.parent / "data" / "configs" / "samples"
@@ -56,12 +57,12 @@ def clear_collection() -> None:
     vs = get_vectorstore()
     try:
         vs._collection.delete(where={"vendor": {"$ne": ""}})
-        print("Vector store cleared.")
+        print("  Vector store cleared.")
     except Exception as e:
-        print(f"Clear warning: {e}")
+        print(f"  Clear warning: {e}")
 
 
-def ingest_all(verbose: bool = True) -> dict[str, int]:
+async def ingest_all(verbose: bool = True) -> dict[str, int]:
     results: dict[str, int] = {}
     total = 0
 
@@ -74,13 +75,17 @@ def ingest_all(verbose: bool = True) -> dict[str, int]:
         print(f"\n  Loading {path.name} → {cfg['device']} ({cfg['description']})")
         try:
             policy = load_from_file(path, cfg["vendor"], cfg["device"])
-            count = ingest_policy(policy)
+            result = await onboard_device(policy, triggered_by="bootstrap")
+            count = result["chroma_documents"]
             results[cfg["device"]] = count
             total += count
 
             if verbose:
                 print(f"         {policy.summary()}")
-                print(f"         → {count} documents ingested")
+                print(
+                    f"         → {count} documents ingested  "
+                    f"[snapshot #{result['snapshot_id']}]"
+                )
         except Exception as e:
             print(f"  ERROR  {cfg['device']}: {e}")
             import traceback
@@ -114,12 +119,12 @@ def print_summary() -> None:
         pass
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Bootstrap RAG from sample configs")
-    parser.add_argument("--clear",   action="store_true", help="Clear vector store before ingesting")
-    parser.add_argument("--query",   type=str, default="", help="Run a test query after ingesting")
-    parser.add_argument("--quiet",   action="store_true", help="Less verbose output")
-    parser.add_argument("--list",    action="store_true", help="List what will be ingested, then exit")
+async def main() -> None:
+    parser = argparse.ArgumentParser(description="Bootstrap RAG + Postgres from sample configs")
+    parser.add_argument("--clear",  action="store_true", help="Clear vector store before ingesting")
+    parser.add_argument("--query",  type=str, default="", help="Run a test query after ingesting")
+    parser.add_argument("--quiet",  action="store_true", help="Less verbose output")
+    parser.add_argument("--list",   action="store_true", help="List configs and exit")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -132,16 +137,17 @@ def main() -> None:
             print(f"  [{exists}] {cfg['device']:12} {cfg['vendor']:12} {cfg['file'].name}")
         return
 
+    await init_db()
+
     if args.clear:
         clear_collection()
 
-    ingest_all(verbose=not args.quiet)
+    await ingest_all(verbose=not args.quiet)
     print_summary()
 
     if args.query:
         verify_query(args.query)
     else:
-        # Default verification queries
         for q in [
             "shadow rules that can never be hit",
             "duplicate address objects with same IP",
@@ -152,4 +158,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

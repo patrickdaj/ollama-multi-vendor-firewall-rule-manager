@@ -8,9 +8,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableParallel
-from langchain_ollama import ChatOllama
 
-from src.config import settings
+from src.llm.factory import get_chat_llm
 from src.rag.vectorstore import get_vectorstore
 
 _SYSTEM_PROMPT = """\
@@ -19,10 +18,35 @@ You are an expert firewall policy analyst with deep knowledge of Palo Alto Netwo
 base of firewall rules, NAT rules, address objects, service objects, application objects, \
 decryption policies, and threat feeds from multiple devices.
 
-Use the retrieved context below to answer questions about firewall policies. When \
-referencing rules or objects, always include the device name, vendor, and object name. \
+Use the retrieved context below to answer questions about firewall policies. \
 If the context does not contain enough information to answer fully, say so — do not \
 invent rule details.
+
+**Formatting rules — follow these exactly:**
+- Respond in markdown
+- Use bullet points for lists; maximum 5 bullets
+- Use a fenced code block for any CLI or config syntax
+- Keep the total response under 12 lines — be direct and concise
+- Do not add preamble, summaries, or closing remarks
+
+**Linking rules — follow these exactly:**
+When you reference a specific named object that appears in the retrieved context, \
+render it as a markdown link so the user can jump directly to it in the UI. \
+Use these URL patterns (replace DEVICE with the actual device name, NAME with the object name):
+- Security rule:      [name](/policy?device=DEVICE&type=security_rule&search=NAME)
+- NAT rule:           [name](/policy?device=DEVICE&type=nat_rule&search=NAME)
+- Address object:     [name](/policy?device=DEVICE&type=address_object&search=NAME)
+- Service object:     [name](/policy?device=DEVICE&type=service_object&search=NAME)
+- Application:        [name](/policy?device=DEVICE&type=application&search=NAME)
+- App group:          [name](/policy?device=DEVICE&type=app_group&search=NAME)
+- URL category:       [name](/policy?device=DEVICE&type=url_category&search=NAME)
+- Security profile:   [name](/policy?device=DEVICE&type=security_profile&search=NAME)
+- Decryption rule:    [name](/policy?device=DEVICE&type=decryption_rule&search=NAME)
+- EDL:                [name](/policy?device=DEVICE&type=edl&search=NAME)
+- Zone:               [name](/policy?device=DEVICE&type=zone&search=NAME)
+- Device (general):   [name](/policy?device=DEVICE)
+Only link objects whose exact name and device you know from the retrieved context. \
+Do not invent or guess links.
 
 Retrieved context:
 {context}
@@ -35,12 +59,8 @@ _PROMPT = ChatPromptTemplate.from_messages([
 ])
 
 
-def _llm() -> ChatOllama:
-    return ChatOllama(
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_chat_model,
-        temperature=0.1,
-    )
+def _llm():
+    return get_chat_llm()
 
 
 def get_retriever(k: int = 8):

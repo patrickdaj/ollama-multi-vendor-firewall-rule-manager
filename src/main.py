@@ -46,12 +46,11 @@ def chat(
                 console.print("[dim]History cleared.[/]")
                 continue
 
-            console.print("[bold yellow]Assistant:[/]", end=" ")
+            console.print("[bold yellow]Assistant:[/] [dim]▌[/]", end="\r")
             full = ""
             async for token in bot.stream(user_input):
-                console.print(token, end="", markup=False)
                 full += token
-            console.print()
+            console.print(Markdown(full))
 
     asyncio.run(_run())
 

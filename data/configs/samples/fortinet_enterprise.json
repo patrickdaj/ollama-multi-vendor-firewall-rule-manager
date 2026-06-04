@@ -47,7 +47,12 @@
       {"name": "pub-web-vip",        "type": "ipmask", "subnet": "203.0.113.10/32", "comment": "Public IP — web VIP"},
       {"name": "pub-mail-vip",       "type": "ipmask", "subnet": "203.0.113.11/32", "comment": "Public IP — mail VIP"},
       {"name": "pub-nat-ip",         "type": "ipmask", "subnet": "203.0.113.1/32",  "comment": "Public outbound NAT IP"},
-      {"name": "rfc1918-all",        "type": "ipmask", "subnet": "10.0.0.0/8",      "comment": "RFC1918 — used in block rules"}
+      {"name": "rfc1918-all",        "type": "ipmask", "subnet": "10.0.0.0/8",      "comment": "RFC1918 — used in block rules"},
+      {"name": "geo-CN",             "type": "geography", "country": "CN",           "comment": "China — blocked inbound"},
+      {"name": "geo-RU",             "type": "geography", "country": "RU",           "comment": "Russia — blocked inbound"},
+      {"name": "geo-KP",             "type": "geography", "country": "KP",           "comment": "North Korea — blocked inbound"},
+      {"name": "dag-aws-prod",       "type": "dynamic",   "filter": "Tag.env=production Tag.cloud=aws", "comment": "AWS production instances — SDN connector"},
+      {"name": "dag-azure-dev",      "type": "dynamic",   "filter": "Tag.env=development Tag.cloud=azure", "comment": "Azure dev VMs — SDN connector"}
     ]
   },
 
@@ -78,6 +83,7 @@
   },
 
   "firewall_service_custom": {
+
     "endpoint": "/api/v2/cmdb/firewall.service/custom",
     "results": [
       {"name": "LDAP",         "tcp-portrange": "389",  "comment": "LDAP directory"},
@@ -87,7 +93,9 @@
       {"name": "SYSLOG-TLS",   "tcp-portrange": "6514", "comment": "Syslog over TLS (RFC 5425)"},
       {"name": "POSTGRESQL",   "tcp-portrange": "5432", "comment": "PostgreSQL database"},
       {"name": "BACKUP-AGENT", "tcp-portrange": "9102", "comment": "Veeam backup agent"},
-      {"name": "WINRM",        "tcp-portrange": "5985-5986", "comment": "Windows Remote Management"}
+      {"name": "WINRM",        "tcp-portrange": "5985-5986", "comment": "Windows Remote Management"},
+      {"name": "PING",         "protocol": "ICMP", "icmptype": 8, "icmpcode": 0, "comment": "ICMP Echo Request (ping)"},
+      {"name": "TRACEROUTE",   "protocol": "ICMP", "icmptype": 11, "comment": "ICMP Time Exceeded (traceroute)"}
     ]
   },
 
@@ -243,6 +251,60 @@
         "server-list": "https://feeds.acmecorp.internal/threat/malware-domains.txt",
         "refresh-rate": "1440",
         "comments": "Malware C2 domain blocklist — refresh daily"
+      }
+    ]
+  },
+
+  "webfilter_urlfilter": {
+    "endpoint": "/api/v2/cmdb/webfilter/urlfilter",
+    "results": [
+      {
+        "id": 1, "name": "urlcat-trusted-saas",
+        "comment": "Approved SaaS productivity applications",
+        "entries": [
+          {"url": "office.com",    "type": "wildcard", "action": "allow"},
+          {"url": "*.office.com",  "type": "wildcard", "action": "allow"},
+          {"url": "salesforce.com","type": "wildcard", "action": "allow"},
+          {"url": "workday.com",   "type": "wildcard", "action": "allow"},
+          {"url": "zoom.us",       "type": "wildcard", "action": "allow"}
+        ]
+      },
+      {
+        "id": 2, "name": "urlcat-blocked-malware",
+        "comment": "Known malware and C2 domains",
+        "entries": [
+          {"url": "*.malware-domain.com", "type": "wildcard", "action": "block"},
+          {"url": "*.c2-tracker.net",     "type": "wildcard", "action": "block"},
+          {"url": "*.phishing-kit.xyz",   "type": "wildcard", "action": "block"}
+        ]
+      }
+    ]
+  },
+
+  "firewall_auth_policy": {
+    "endpoint": "/api/v2/cmdb/firewall/auth-policy",
+    "results": [
+      {
+        "name": "auth-captive-guest",
+        "status": "enable",
+        "srcintf": [{"name": "untrust"}],
+        "dstintf": [{"name": "trust"}],
+        "srcaddr": [{"name": "all"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "HTTP"}, {"name": "HTTPS"}],
+        "active-auth-method": "form-based",
+        "comments": "Captive portal for guest / unidentified users"
+      },
+      {
+        "name": "auth-kerberos-internal",
+        "status": "enable",
+        "srcintf": [{"name": "trust"}],
+        "dstintf": [{"name": "untrust"}],
+        "srcaddr": [{"name": "corp-users"}],
+        "dstaddr": [{"name": "all"}],
+        "service": [{"name": "ALL"}],
+        "active-auth-method": "ntlm",
+        "comments": "Transparent NTLM/Kerberos for domain users"
       }
     ]
   },

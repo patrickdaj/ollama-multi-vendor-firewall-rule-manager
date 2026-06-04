@@ -20,8 +20,11 @@ from src.firewall.models import (
     NATRule,
     NATType,
     RuleAction,
+    AuthPolicy,
     SecurityProfile,
+    ServiceGroup,
     ServiceObject,
+    URLCategory,
     ZoneDefinition,
 )
 
@@ -51,14 +54,27 @@ def load_fortinet_json(path: Path, device: str) -> FirewallPolicy:
     address_objects: list[AddressObject] = []
     for a in _results(data, "firewall_address"):
         ftype = a.get("type", "ipmask")
-        addr_type = {"ipmask": AddressType.NETWORK, "iprange": AddressType.RANGE,
-                     "fqdn": AddressType.FQDN}.get(ftype, AddressType.HOST)
-        value = a.get("subnet", a.get("fqdn", ""))
-        if ftype == "iprange":
-            value = f"{a.get('start-ip','')}-{a.get('end-ip','')}"
-        address_objects.append(AddressObject(
-            name=a["name"], type=addr_type, value=value, description=a.get("comment", ""),
-        ))
+        if ftype == "geography":
+            address_objects.append(AddressObject(
+                name=a["name"], type=AddressType.GEOGRAPHY,
+                value=a.get("country", ""),
+                description=a.get("comment", ""),
+            ))
+        elif ftype == "dynamic":
+            address_objects.append(AddressObject(
+                name=a["name"], type=AddressType.GROUP,
+                is_dynamic=True, dynamic_filter=a.get("filter", ""),
+                description=a.get("comment", ""),
+            ))
+        else:
+            addr_type = {"ipmask": AddressType.NETWORK, "iprange": AddressType.RANGE,
+                         "fqdn": AddressType.FQDN}.get(ftype, AddressType.HOST)
+            value = a.get("subnet", a.get("fqdn", ""))
+            if ftype == "iprange":
+                value = f"{a.get('start-ip','')}-{a.get('end-ip','')}"
+            address_objects.append(AddressObject(
+                name=a["name"], type=addr_type, value=value, description=a.get("comment", ""),
+            ))
     for g in _results(data, "firewall_addrgrp"):
         address_objects.append(AddressObject(
             name=g["name"], type=AddressType.GROUP,
@@ -69,10 +85,52 @@ def load_fortinet_json(path: Path, device: str) -> FirewallPolicy:
     # ── Service objects ────────────────────────────────────────────────────
     service_objects: list[ServiceObject] = []
     for s in _results(data, "firewall_service_custom"):
-        proto = "tcp" if s.get("tcp-portrange") else ("udp" if s.get("udp-portrange") else "any")
-        port = s.get("tcp-portrange") or s.get("udp-portrange") or ""
+        if s.get("protocol") == "ICMP" or s.get("protocol") == "ICMP6":
+            proto, port = "icmp", ""
+        elif s.get("tcp-portrange"):
+            proto, port = "tcp", s["tcp-portrange"]
+        elif s.get("udp-portrange"):
+            proto, port = "udp", s["udp-portrange"]
+        else:
+            proto, port = "any", ""
         service_objects.append(ServiceObject(
             name=s["name"], protocol=proto, port=port, description=s.get("comment", ""),
+        ))
+
+    # ── Service groups ────────────────────────────────────────────────────
+    service_groups: list[ServiceGroup] = []
+    for g in _results(data, "firewall_service_group"):
+        service_groups.append(ServiceGroup(
+            name=g["name"],
+            members=[m["name"] for m in g.get("member", [])],
+            description=g.get("comment", ""),
+        ))
+
+    # ── URL categories ────────────────────────────────────────────────────
+    url_categories: list[URLCategory] = []
+    for c in _results(data, "webfilter_urlfilter"):
+        urls = [e["url"] for e in c.get("entries", []) if e.get("url")]
+        url_categories.append(URLCategory(
+            name=c["name"],
+            description=c.get("comment", ""),
+            urls=urls,
+            vendor="fortinet", device=device,
+        ))
+
+    # ── Auth / captive portal policies ───────────────────────────────────
+    auth_policies: list[AuthPolicy] = []
+    for i, r in enumerate(_results(data, "firewall_auth_policy")):
+        auth_policies.append(AuthPolicy(
+            name=r["name"],
+            description=r.get("comments", ""),
+            enabled=r.get("status", "enable") == "enable",
+            src_zones=[z["name"] for z in r.get("srcintf", [])],
+            dst_zones=[z["name"] for z in r.get("dstintf", [])],
+            src_addresses=[a["name"] for a in r.get("srcaddr", [])],
+            dst_addresses=[a["name"] for a in r.get("dstaddr", [])],
+            services=[s["name"] for s in r.get("service", [])],
+            authentication_method=r.get("active-auth-method", ""),
+            vendor="fortinet", device=device, position=i,
         ))
 
     # ── Application groups ────────────────────────────────────────────────
@@ -222,6 +280,8 @@ def load_fortinet_json(path: Path, device: str) -> FirewallPolicy:
         rules=rules, nat_rules=nat_rules,
         decryption_rules=decryption_rules, dos_policies=dos_policies,
         address_objects=address_objects, service_objects=service_objects,
+        service_groups=service_groups,
+        url_categories=url_categories, auth_policies=auth_policies,
         application_groups=application_groups,
         security_profiles=security_profiles,
         decryption_profiles=decryption_profiles,

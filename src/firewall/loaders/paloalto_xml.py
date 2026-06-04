@@ -8,6 +8,11 @@ from src.firewall.models import (
     AddressObject,
     AddressType,
     ApplicationGroup,
+    ApplicationObject,
+    AuthPolicy,
+    DecryptionProfile,
+    ServiceGroup,
+    URLCategory,
     DecryptAction,
     DecryptionRule,
     DecryptType,
@@ -80,21 +85,103 @@ def load_paloalto_xml(path: Path, device: str) -> FirewallPolicy:
                                                   value=_text(a, "fqdn"), description=desc, tags=tags))
 
     for g in vsys.findall("address-group/entry"):
-        members = _members(g, "static")
-        address_objects.append(AddressObject(
-            name=g.get("name", ""), type=AddressType.GROUP, members=members,
-            description=_text(g, "description"),
-            tags=[m.text for m in g.findall("tag/member") if m.text],
-        ))
+        dynamic_node = g.find("dynamic/filter")
+        if dynamic_node is not None:
+            address_objects.append(AddressObject(
+                name=g.get("name", ""), type=AddressType.GROUP,
+                is_dynamic=True, dynamic_filter=dynamic_node.text or "",
+                description=_text(g, "description"),
+                tags=[m.text for m in g.findall("tag/member") if m.text],
+            ))
+        else:
+            members = _members(g, "static")
+            address_objects.append(AddressObject(
+                name=g.get("name", ""), type=AddressType.GROUP, members=members,
+                description=_text(g, "description"),
+                tags=[m.text for m in g.findall("tag/member") if m.text],
+            ))
 
     # ── Service objects ────────────────────────────────────────────────────
     service_objects: list[ServiceObject] = []
     for s in vsys.findall("service/entry"):
-        proto = "tcp" if s.find("protocol/tcp") is not None else "udp"
-        port_path = f"protocol/{proto}/port"
+        if s.find("protocol/icmp") is not None or s.find("protocol/icmp6") is not None:
+            proto, port = "icmp", ""
+        elif s.find("protocol/tcp") is not None:
+            proto, port = "tcp", _text(s, "protocol/tcp/port")
+        else:
+            proto, port = "udp", _text(s, "protocol/udp/port")
         service_objects.append(ServiceObject(
             name=s.get("name", ""), protocol=proto,
-            port=_text(s, port_path), description=_text(s, "description"),
+            port=port, description=_text(s, "description"),
+        ))
+
+    # ── Service groups ────────────────────────────────────────────────────
+    service_groups: list[ServiceGroup] = []
+    for g in vsys.findall("service-group/entry"):
+        service_groups.append(ServiceGroup(
+            name=g.get("name", ""),
+            members=[m.text for m in g.findall("members/member") if m.text],
+            description=_text(g, "description"),
+        ))
+
+    # ── Decryption profiles ───────────────────────────────────────────────
+    decryption_profiles: list[DecryptionProfile] = []
+    for p in vsys.findall("profiles/decryption/entry"):
+        fp = p.find("ssl-forward-proxy")
+        inbound = p.find("ssl-inbound-inspection")
+        decryption_profiles.append(DecryptionProfile(
+            name=p.get("name", ""),
+            description=_text(p, "description"),
+            block_expired_certs=(
+                _text(fp, "block-expired-certificate") == "yes" if fp is not None else False
+            ),
+            block_untrusted_issuers=(
+                _text(fp, "block-untrusted-issuer") == "yes" if fp is not None else False
+            ),
+            min_tls_version=_text(p, "ssl-version/min-version"),
+            vendor="paloalto", device=device,
+        ))
+
+    # ── Custom URL categories ─────────────────────────────────────────────
+    url_categories: list[URLCategory] = []
+    for c in vsys.findall("profiles/custom-url-category/entry"):
+        url_categories.append(URLCategory(
+            name=c.get("name", ""),
+            description=_text(c, "description"),
+            urls=[m.text for m in c.findall("list/member") if m.text],
+            vendor="paloalto", device=device,
+        ))
+
+    # ── Application objects (user-defined / custom App-IDs) ───────────────
+    application_objects: list[ApplicationObject] = []
+    for a in vsys.findall("application/entry"):
+        ports = [m.text for m in a.findall("default/port/member") if m.text]
+        application_objects.append(ApplicationObject(
+            name=a.get("name", ""),
+            description=_text(a, "description"),
+            category=_text(a, "category"),
+            subcategory=_text(a, "subcategory"),
+            technology=_text(a, "technology"),
+            risk=int(_text(a, "risk", "0") or "0"),
+            default_ports=ports,
+            is_custom=True,
+            vendor="paloalto", device=device,
+        ))
+
+    # ── Auth policies ─────────────────────────────────────────────────────
+    auth_policies: list[AuthPolicy] = []
+    for i, r in enumerate(vsys.findall("authentication/rules/entry")):
+        auth_policies.append(AuthPolicy(
+            name=r.get("name", ""),
+            description=_text(r, "description"),
+            src_zones=_members(r, "from"),
+            dst_zones=_members(r, "to"),
+            src_addresses=_members(r, "source"),
+            dst_addresses=_members(r, "destination"),
+            services=_members(r, "service"),
+            authentication_profile=_text(r, "authentication-profile"),
+            authentication_method=_text(r, "method"),
+            vendor="paloalto", device=device, position=i,
         ))
 
     # ── Application groups and filters ────────────────────────────────────
@@ -249,7 +336,10 @@ def load_paloalto_xml(path: Path, device: str) -> FirewallPolicy:
     return FirewallPolicy(
         vendor="paloalto", device=device,
         rules=rules, nat_rules=nat_rules,
-        decryption_rules=decryption_rules, dos_policies=dos_policies,
+        decryption_rules=decryption_rules, decryption_profiles=decryption_profiles,
+        dos_policies=dos_policies, auth_policies=auth_policies,
         address_objects=address_objects, service_objects=service_objects,
-        application_groups=application_groups, edls=edls, zones=zones,
+        service_groups=service_groups,
+        application_objects=application_objects, application_groups=application_groups,
+        url_categories=url_categories, edls=edls, zones=zones,
     )

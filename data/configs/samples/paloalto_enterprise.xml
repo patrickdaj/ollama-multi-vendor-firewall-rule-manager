@@ -190,6 +190,21 @@
               </static>
               <description>External DNS resolvers (fallback)</description>
             </entry>
+            <!-- Dynamic Address Groups (DAG) — populated by VM-Series agent / API tags -->
+            <entry name="dag-prod-servers">
+              <dynamic>
+                <filter>'env.prod' and 'type.server'</filter>
+              </dynamic>
+              <description>Production servers — tag-driven, managed by VM-Series agent</description>
+              <tag><member>dynamic</member><member>vm-agent</member></tag>
+            </entry>
+            <entry name="dag-cloud-workloads">
+              <dynamic>
+                <filter>'cloud.aws' or 'cloud.azure'</filter>
+              </dynamic>
+              <description>Cloud workloads in AWS or Azure — auto-populated via cloud integration</description>
+              <tag><member>dynamic</member><member>cloud</member></tag>
+            </entry>
           </address-group>
 
           <!-- ═══════════════════════════════════════════════
@@ -235,6 +250,14 @@
             <entry name="svc-backup-agent">
               <protocol><tcp><port>9102</port></tcp></protocol>
               <description>Backup agent (custom port)</description>
+            </entry>
+            <entry name="svc-ping">
+              <protocol><icmp><type>8</type><code>0</code></icmp></protocol>
+              <description>ICMP Echo Request (ping)</description>
+            </entry>
+            <entry name="svc-http-alt-range">
+              <protocol><tcp><port>8080-8090</port></tcp></protocol>
+              <description>HTTP alternate port range (app servers)</description>
             </entry>
           </service>
 
@@ -804,6 +827,119 @@
             </decryption>
 
           </rulebase>
+
+          <!-- ═══════════════════════════════════════════════
+               DECRYPTION PROFILES
+               ═══════════════════════════════════════════════ -->
+          <profiles>
+            <decryption>
+              <entry name="corp-decrypt-profile">
+                <ssl-forward-proxy>
+                  <block-unsupported-mode>yes</block-unsupported-mode>
+                  <block-expired-certificate>yes</block-expired-certificate>
+                  <block-untrusted-issuer>no</block-untrusted-issuer>
+                </ssl-forward-proxy>
+                <ssl-version>
+                  <min-version>tls1-2</min-version>
+                </ssl-version>
+                <description>Corporate outbound SSL decryption — TLS 1.2+ required</description>
+              </entry>
+              <entry name="inbound-decrypt-profile">
+                <ssl-inbound-inspection>
+                  <block-if-no-resource>yes</block-if-no-resource>
+                </ssl-inbound-inspection>
+                <ssl-version>
+                  <min-version>tls1-2</min-version>
+                </ssl-version>
+                <description>Inbound inspection for DMZ servers</description>
+              </entry>
+            </decryption>
+
+            <!-- ═══════════════════════════════════════════════
+                 CUSTOM URL CATEGORIES
+                 ═══════════════════════════════════════════════ -->
+            <custom-url-category>
+              <entry name="urlcat-trusted-saas">
+                <description>Approved SaaS productivity applications</description>
+                <list>
+                  <member>office.com</member>
+                  <member>*.office.com</member>
+                  <member>salesforce.com</member>
+                  <member>workday.com</member>
+                  <member>zoom.us</member>
+                </list>
+                <type>URL List</type>
+              </entry>
+              <entry name="urlcat-internal-apps">
+                <description>Internal ACME web applications</description>
+                <list>
+                  <member>portal.acme.internal</member>
+                  <member>jira.acme.internal</member>
+                  <member>wiki.acme.internal</member>
+                  <member>gitlab.acme.internal</member>
+                </list>
+                <type>URL List</type>
+              </entry>
+            </custom-url-category>
+          </profiles>
+
+          <!-- ═══════════════════════════════════════════════
+               APPLICATION OBJECTS (custom / user-defined)
+               ═══════════════════════════════════════════════ -->
+          <application>
+            <entry name="acme-internal-api">
+              <description>Internal ACME REST API gateway</description>
+              <category>business-systems</category>
+              <subcategory>management</subcategory>
+              <technology>client-server</technology>
+              <risk>1</risk>
+              <default>
+                <port>
+                  <member>tcp/8443</member>
+                </port>
+              </default>
+            </entry>
+            <entry name="acme-backup-agent">
+              <description>ACME proprietary backup agent protocol</description>
+              <category>business-systems</category>
+              <subcategory>storage-backup</subcategory>
+              <technology>client-server</technology>
+              <risk>1</risk>
+              <default>
+                <port>
+                  <member>tcp/9102</member>
+                </port>
+              </default>
+            </entry>
+          </application>
+
+          <!-- ═══════════════════════════════════════════════
+               AUTHENTICATION POLICIES
+               ═══════════════════════════════════════════════ -->
+          <authentication>
+            <rules>
+              <entry name="auth-captive-outbound">
+                <from><member>trust</member></from>
+                <to><member>untrust</member></to>
+                <source><member>any</member></source>
+                <destination><member>any</member></destination>
+                <service><member>any</member></service>
+                <authentication-profile>RADIUS-Corp</authentication-profile>
+                <method>web-form</method>
+                <description>Captive portal for general outbound users</description>
+              </entry>
+              <entry name="auth-vpn-users">
+                <from><member>vpn</member></from>
+                <to><member>trust</member></to>
+                <source><member>any</member></source>
+                <destination><member>any</member></destination>
+                <service><member>any</member></service>
+                <authentication-profile>LDAP-Corp</authentication-profile>
+                <method>kerberos</method>
+                <description>Kerberos SSO for VPN-connected users</description>
+              </entry>
+            </rules>
+          </authentication>
 
         </entry>
       </vsys>

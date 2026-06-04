@@ -121,6 +121,12 @@ def _service_docs(policy: FirewallPolicy) -> list[Document]:
             "device": policy.device, "vendor": policy.vendor,
             "doc_id": _id(policy.device, "svc", s.name),
         }))
+    for g in policy.service_groups:
+        docs.append(_doc(g.to_text(), {
+            "type": "service_group", "name": g.name,
+            "device": policy.device, "vendor": policy.vendor,
+            "doc_id": _id(policy.device, "svcgrp", g.name),
+        }))
     return docs
 
 

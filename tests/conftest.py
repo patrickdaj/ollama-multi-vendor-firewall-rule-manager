@@ -2,12 +2,40 @@
 
 Connector tests use mock connectors — no live devices needed.
 RAG tests use an in-memory ChromaDB instance.
+MCP / prompt tests use an ephemeral vectorstore pre-loaded with all four
+enterprise sample configs (no live Ollama unless marked @pytest.mark.llm).
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+SAMPLES_DIR = Path(__file__).parent.parent / "data" / "configs" / "samples"
+
+# ── LLM client cache invalidation ────────────────────────────────────────────
+# ChatOllama holds an httpx async client whose connection pool is bound to the
+# event loop that first used it.  pytest-asyncio creates a new event loop per
+# test function, so the cached client from the previous test becomes invalid.
+# Clearing the cache before each LLM-marked test forces a fresh client.
+
+
+@pytest.fixture(autouse=True)
+def _reset_llm_cache(request):
+    if request.node.get_closest_marker("llm"):
+        from src.llm.factory import invalidate_cache
+        invalidate_cache()
+
+
+# ── pytest markers ────────────────────────────────────────────────────────────
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "llm: requires a running Ollama instance (skipped in CI by default)",
+    )
 
 from src.firewall.models import (
     AddressObject,
@@ -236,3 +264,53 @@ def in_memory_vectorstore(monkeypatch):
     monkeypatch.setattr("src.rag.loader.get_vectorstore", lambda: store)
     monkeypatch.setattr("src.mcp.server.get_vectorstore", lambda: store)
     return store
+
+
+@pytest.fixture
+def enterprise_vectorstore(monkeypatch):
+    """Ephemeral vectorstore pre-loaded with all four enterprise sample configs.
+
+    Uses FakeEmbeddings so no Ollama is required. Metadata-based filtering
+    works normally; semantic ranking is not meaningful with fake embeddings.
+    """
+    import chromadb
+    from langchain_chroma import Chroma
+    from langchain_core.embeddings import FakeEmbeddings
+
+    from src.firewall.loaders import load_from_file
+    from src.rag.loader import ingest_policy
+
+    client = chromadb.EphemeralClient()
+    store = Chroma(
+        client=client,
+        collection_name="test_enterprise",
+        embedding_function=FakeEmbeddings(size=768),
+    )
+
+    monkeypatch.setattr("src.rag.loader.get_vectorstore", lambda: store)
+    monkeypatch.setattr("src.mcp.server.get_vectorstore", lambda: store)
+
+    configs = [
+        ("paloalto_enterprise.xml",  "paloalto",  "pa-fw01"),
+        ("fortinet_enterprise.json", "fortinet",  "fg-fw01"),
+        ("cisco_asa_enterprise.txt", "cisco_asa", "asa-fw01"),
+        ("cisco_ftd_enterprise.json","cisco_ftd",  "ftd-fw01"),
+    ]
+    for filename, vendor, device in configs:
+        policy = load_from_file(SAMPLES_DIR / filename, vendor, device)
+        ingest_policy(policy)
+
+    return store
+
+
+@pytest.fixture
+def mock_chain(monkeypatch):
+    """Replace build_rag_chain with a mock that returns a fixed string.
+
+    Use this for MCP analysis/translation tool tests that would otherwise
+    require a running LLM.
+    """
+    chain = MagicMock()
+    chain.invoke.return_value = "Mock analysis: no issues found."
+    monkeypatch.setattr("src.mcp.server.build_rag_chain", lambda: chain)
+    return chain

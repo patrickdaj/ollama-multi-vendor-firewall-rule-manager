@@ -63,14 +63,16 @@ def load_cisco_ftd_json(path: Path, device: str) -> FirewallPolicy:
         ))
 
     # ── Service objects ────────────────────────────────────────────────────
-    service_objects = [
-        ServiceObject(
-            name=o["name"],
-            protocol=o.get("protocol", "TCP").lower(),
-            port=o.get("port", ""),
-        )
-        for o in _items(data, "port_objects")
-    ]
+    service_objects: list[ServiceObject] = []
+    for o in _items(data, "port_objects"):
+        proto = o.get("protocol", "TCP").lower()
+        if proto == "icmp" or proto == "icmpv6":
+            port = ""
+        else:
+            port = str(o.get("port", ""))
+        service_objects.append(ServiceObject(
+            name=o["name"], protocol=proto, port=port,
+        ))
 
     # ── Application groups / filters ──────────────────────────────────────
     application_groups = [
